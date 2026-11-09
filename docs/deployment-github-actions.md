@@ -6,6 +6,16 @@
 2. 将 `dist` 内容同步到 ECS 的 `/var/www/wyjlove/`。
 3. 检查 Nginx 配置并 reload。
 
+## 本地保存后自动推送
+
+如果希望保存项目文件后自动触发上述流程，在 PowerShell 执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-auto-deploy.ps1
+```
+
+监控脚本会等待 5 秒合并同一轮文件修改，然后自动执行 `git add`、`git commit` 和 `git push`。它会忽略 `.git`、`node_modules` 和 `dist`。电脑关机或脚本停止时不会自动同步。
+
 ## 首次配置
 
 在项目目录执行：
