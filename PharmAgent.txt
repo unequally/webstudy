@@ -1,0 +1,1914 @@
+===== PAGE 1 =====
+PharmAgent: Constraint-Aware Search with
+Frozen Language Models for Molecular Optimization
+Nihui Shao1,*, Guanxing Chen 1,*,†, Jilong Shi 1, Zhengyang Bai 1, Haohuai He 2,
+Zhenchao Tang3, Qiujie Lv 4, Y u-An Huang5,†, and Zhi-An Huang 1,†
+1 City University of Hong Kong (Dongguan)
+2 The Hong Kong Polytechnic University
+3 Tencent AI Lab
+4 Zhengzhou University
+5 Northwestern Polytechnical University
+* Equal contribution. † Corresponding authors.
+ABSTRACT
+Molecular optimization must improve target activity and satisfy developability constraints
+within limited evaluation budgets. Classical methods require tailored rules or training to
+incorporate chemical instructions and property feedback. Frozen language models can con-
+dition edits on this information, but need explicit constraint control and relevant experience.
+We therefore present P HARM AGENT , a constraint-aware molecular search method driven
+by adaptive external state. Its Lagrangian controller translates violations in accepted states
+into accumulated constraint pressure, keeping this history separate from current property
+measurements. Structure-indexed replay complements this feedback with relevant evalu-
+ated transitions that guide subsequent proposals. As a curriculum progressively activates
+constraints, candidates and the incumbent are compared under the same current objective,
+and the accepted state determines the next multiplier update. We derive an exact identity
+that characterizes how accepted-state violations accumulate in the controller’s multipliers.
+Across ﬁve tasks with ﬁve independent runs, PHARM AGENT achieves a summed area under
+the target-score curves (AUC) of 3.9208 in target-only search, improving over MOLLEO
+by 37.3%. With online constraints, it achieves a property-adjusted AUC of 0.7076, improv-
+ing over the strongest online baseline, ExLLM, by 53.8%. These results rank ﬁrst among
+all evaluated methods in both target-only and constraint-aware search. The online compar-
+ison covers all ﬁve baseline frameworks. The full system leads every ablation variant in
+target quality, property-adjusted performance, and Pareto hypervolume. All ﬁve molecu-
+lar cases reach feasible ﬁnal states, documenting target gains and trade-offs. These results
+establish P HARM AGENT as a powerful framework for budget-limited molecular optimiza-
+tion, achieving leading aggregate performance through adaptive external search state and
+frozen language models.
+1
+arXiv:2610.05431v1  [cs.AI]  4 Oct 2026
+
+===== PAGE 2 =====
+Preprint
+1 I NTRODUCTION
+Molecular optimization searches for structures with improved target activity and suitable physicochemical,
+synthesizability, and absorption, distribution, metabolism, excretion, and toxicity (ADMET) properties (Bick-
+erton et al. , 2012; Gao & Coley , 2020). Under limited budgets, each evaluation should guide productive
+structural edits ( Gao et al. , 2022). Graph-GA ’s stochastic mutation and crossover can spend evaluations on
+unproductive edits ( Jensen, 2019; Wang et al., 2025). REINVENT4 adapts its policy through reward-driven
+parameter updates ( Loefﬂer et al. , 2024), while latent-space Bayesian optimization depends on learned rep-
+resentations and valid decoding ( Gómez-Bombarelli et al. , 2018). These methods require translating chem-
+ical instructions and heterogeneous feedback into search rules or training signals ( Ran et al. , 2025). Large
+language models (LLMs) can instead condition chemically informed edits directly on task instructions and
+evaluated experience ( Wang et al. , 2025; Ran et al. , 2025; Krüger et al. , 2026). Freezing their parameters
+enables adaptation through context without retraining ( Y ang et al., 2024; M. Bran et al. , 2024).
+However, proposal quality alone leaves two feedback gaps (Figure 1(a)). First, target gains can introduce
+property violations (Gao & Coley, 2020). Persistent violations call for search priorities that adapt to violation
+history, beyond ﬁxed penalty weights or post-hoc ﬁltering. Second, multi-round interaction creates experi-
+ence, but useful guidance requires edits relevant to the current molecular structure ( Shinn et al. , 2023; Liu
+et al., 2025). These gaps motivate dynamic constraint control and structure-aware experience retrieval.
+To address both gaps, we propose P HARM AGENT , a constraint-aware molecular search method that adapts
+external state around frozen language models. Generator and Reviewer execute the proposal, evaluation, ac-
+ceptance, and feedback loop with scientiﬁc tools and medicinal-chemistry retrieval-augmented generation
+(MedChem-RAG) (Figure 1(b)). Three mechanisms organize external state (Figure 1(c)). A Lagrangian con-
+troller accumulates accepted-state violations as historical pressure, separate from current measurements (Bert-
+sekas, 1999). Chemical-aware contextual experience replay (Chemical-CER) retrieves structurally related
+evaluated edits, and a curriculum introduces constraints after target exploration. Candidates and the incum-
+bent share the current objective, while stored attempts remain distinct from accepted states. Table 1 compares
+the evaluated conﬁgurations.
+Table 1: Mechanisms in evaluated conﬁgurations (  enabled,  not enabled). Baseline rows show original
+conﬁgurations. Online adaptations use ﬁxed-penalty (FP) rewards or feasibility-ﬁrst (FF) rewards, selection,
+or conversational guidance. Retrieval and cross-task reuse concern optimization attempts. Appendix D spec-
+iﬁes protocols.
+Method
+Online
+constraints
+Adaptive
+weights
+Structure-based
+retrieval Cross-taskreuse
+Graph-GA / REINVENT4    
+MOLLEO / ExLLM / SEISMO    
+Online adaptations    
+PHARM AGENT    
+We evaluate target-only search (E1) on practical molecular optimization (PMO) ( Gao et al., 2022) and search
+with online constraints (E2) on ADMET-PMO, followed by ablations and molecular cases. Our contributions
+are:
+• A uniﬁed molecular search framework that turns property feedback, structurally relevant transitions, and
+constraint timing into adaptive external decision state for frozen LLMs.
+• An analytical characterization linking multiplier growth to cumulative accepted-state violations, explaining
+how the controller retains historical constraint pressure.
+2
+
+===== PAGE 3 =====
+Preprint
+a  Molecular search: two feedback gaps
+Edit
+Illustrative graph edit Target
+Seven property constraints
+MW logP QED SA CYP2D6 hERG Caco-2
+High target score ≠ feasible solution
+Evaluation history
+Needs relevant guidance
+Which next edit?
+Schematic challenges
+b  Frozen LLMs, budgeted search
+Structured feedback
+MedChem-RAG Generator Evaluate Accept / retain Reviewer
+Fixed prior Frozen LLM Target + properties Same objective Frozen LLM
+Evaluated attempt Accepted state
+c  External search state
+Chemical-CER Curriculum Lagrangian
+Attempt ≠ acceptance
+0 4 7
+Active constraints Current facts History pressure
+State context for the next proposal
+Current objective
+(
+)
+(
+)
+(
+)
+Figure 1: Motivation and the P HARM AGENT feedback loop. (a) Two feedback gaps in molecular search.
+High target scores need not imply feasibility, and past evaluations require relevant retrieval. (b) Frozen
+Generator–Reviewer workﬂow for proposal, evaluation, acceptance, and feedback. Candidates and the in-
+cumbent share the current objective. (c) External search state comprising Chemical-CER, curriculum, and
+Lagrangian control. Evaluated attempts enter replay, while accepted states update multipliers. Current mea-
+surements remain separate from historical pressure. Property labels denote molecular weight (MW), the
+logarithm of the octanol–water partition coefﬁcient (logP), quantitative estimate of drug-likeness (QED), syn-
+thetic accessibility (SA), cytochrome P450 2D6 (CYP2D6), the human ether-à-go-go-related gene potassium
+channel (hERG), and Caco-2 cell permeability. Icons are schematic. Solid routes show ﬂow or updates,
+whereas dashed routes show conditioning.
+• The highest aggregate performance across ﬁve tasks and ﬁve runs, with a 37.3% gain in target-score area
+under the curve (AUC) in E1 and a 53.8% gain in ADMET-adjusted AUC (AA-AUC) over the strongest
+online baseline in E2. The full system leads every ablation, and all ﬁve cases reach feasibility.
+2 R ELATED WORK
+Molecular generation with property feedback. Multi-property optimization must coordinate conﬂicting
+chemical objectives ( Bickerton et al. , 2012; Gao & Coley , 2020). InversionGNN uses learned structure–
+property knowledge and Pareto search ( Niu et al. , 2025). MolGen incorporates chemical feedback into
+molecular language modeling ( Fang et al. , 2024). Uncertainty-aware reinforcement learning (RL) guides
+diffusion models toward multiple molecular properties ( Chen et al. , 2025). These approaches connect gen-
+erative mechanisms to scientiﬁc evaluations. P HARM AGENT adapts measured search state around a frozen
+model, with explicit online inequalities and a ﬁnite target-oracle budget.
+Language-model search and memory. MOLLEO ( Wang et al. , 2025), ExLLM ( Ran et al. , 2025), and
+SEISMO ( Krüger et al. , 2026) organize search around populations, experience summaries, and interaction
+3
+
+===== PAGE 4 =====
+Preprint
+trajectories. Contextual experience replay ( Liu et al. , 2025) reuses agent interactions without parameter
+updates. ReAct ( Y ao et al., 2023) and ChemCrow ( M. Bran et al. , 2024) ground proposals in tool obser-
+vations. P HARM AGENT integrates numerical constraint history and structurally relevant transitions directly
+into proposal-and-acceptance decisions.
+Constrained optimization and evaluation. Penalty and multiplier methods are classical ( Bertsekas, 1999;
+Boyd & V andenberghe, 2004). Our contribution connects these methods to frozen-LLM molecular search
+through accepted-state updates, shared-objective comparisons, and separate measurement/history feedback.
+Graph-GA (Jensen, 2019) and REINVENT4 (Loefﬂer et al., 2024) supply non-LLM controls. PMO measures
+target progress against oracle calls ( Gao et al. , 2022). ADMET-PMO adds shared RDKit and ADMET-AI
+evaluations (Landrum et al. , 2024; Swanson et al. , 2024), supporting both online constraints and post-hoc
+annotation.
+3 P HARM AGENT : C ONSTRAINT -AWARE MOLECULAR SEARCH
+3.1 P ROBLEM SETUP
+LetX be the space of valid molecular structures, f a black-box target oracle, and gi property evaluators with
+thresholds ti. The budget B counts unique target evaluations, including initialization. Neither the evaluators
+nor the frozen LLM supply gradients. We seek a high-scoring molecule satisfying K property constraints:
+max
+x∈X
+f (x) s.t. ˜gi(x)≤ ˜ti, i = 1, . . . , K. (1)
+For an upper bound set ai = 1, and for a lower bound set ai =−1, with ˜gi = aigi and ˜ti = aiti. Normalized
+violation is vi(x) = max(0 , (˜gi(x)− ˜ti)/ri) for ﬁxed scales ri > 0. V alidity deﬁnesX . Chemically valid
+structures remain eligible despite property violations.
+3.2 S EARCH FRAMEWORK
+The round-t state comprises incumbent y(t), active constraintsCt, multipliers λ(t), penalty ρ(t), archiveDt,
+and Reviewer feedback Rt:
+St = (y(t),Ct, λ(t), ρ(t),Dt, Rt),
+Pt∼ qθ
+(
+·| Encode(St;I)
+)
+, θ ﬁxed.
+(2)
+Pt is the proposal batch. I supplies molecular representations, property deﬁnitions, retrieval features, and
+ﬁxed chemical context. Measurements adapt St while model parameters stay ﬁxed.
+The Generator proposes up to ﬁve molecular strings in the simpliﬁed molecular-input line-entry system
+(SMILES) ( Weininger, 1988) per request. RDKit ( Landrum et al. , 2024) checks validity and novelty after
+canonicalization. RDKit and ADMET-AI v1.4.0 supply properties ( Swanson et al. , 2024). MedChem-RAG
+retrieves ChEMBL ( Zdrazil et al. , 2024) matched molecular pairs (MMPs) through ﬁngerprint-based Face-
+book AI similarity search (FAISS) (Griffen et al., 2011; Dossetter et al., 2013; Johnson et al., 2021; Rogers &
+Hahn, 2010). Only Generator and Reviewer invoke the frozen LLM. The Reviewer returns structured priori-
+ties and modiﬁcation categories. Replay supplies canonical structure pairs and numeric outcomes, excluding
+historical model prose (Appendix F).
+3.3 L AGRANGIAN FEEDBACK AND ACCEPTANCE
+The controller turns constraint violations into both a numerical acceptance criterion and feedback for sub-
+sequent proposals. Classical multiplier and quadratic-penalty terms ( Bertsekas, 1976) deﬁne the current
+objective:
+LCt (x, λ, ρ) = f (x)−
+∑
+i∈Ct
+λivi(x)− ρ
+2
+∑
+i∈Ct
+vi(x)2. (3)
+4
+
+===== PAGE 5 =====
+Preprint
+Algorithm 1 PHARM AGENT : external-state search with a frozen proposal model
+Require: Oracles f,{gi}, budget B, round cap Tmax, run-local archiveD
+1: Score seed pool within B. initialize incumbent x, seen setS, spent calls b, λ = 0, ρ = ρ0
+2: for t = 0, . . . , Tmax− 1 while b < B do
+3: SetCt. on expansion reset ρ, retain λ. rescore x
+4: Retrieve eligible structure-indexed transitions. assemble facts, history, RAG, and feedback
+5: Generate at most ﬁve candidates. verify validity and global novelty
+6: If none remain, allow one repair request. if still empty, retain context and continue
+7: Evaluate novel candidates within remaining B. update b,S. select round-best c
+8: Accept ¯x by Eq. 4. invoke Reviewer on scored outcomes and accepted state
+9: Update multipliers from ¯x by Eq. 5. record evaluated transition (x, c)
+10: Update replay and bounded recovery context. set x← ¯x
+11: end for
+12: return Evaluations, accepted trajectory, dual history, and archiveD
+An empty active set recovers f . For incoming incumbent y(t) and current-objective round-best candidate c(t),
+acceptance is
+¯x(t) =
+{
+c(t), LCt (c(t), λ(t), ρ(t)) >LCt (y(t), λ(t), ρ(t)),
+y(t), otherwise. (4)
+Both sides use the same active constraints, multipliers, and penalty coefﬁcient. Cached properties rescore
+the incumbent without another oracle call. This comparison isolates the candidate’s improvement under the
+current objective from changes caused by the controller itself. A score stored before a constraint or multiplier
+update would conﬂate these two effects.
+After a completed scored round, let V (t)
+Ct = ∑
+i∈Ct vi(¯x(t)) and update
+λ(t+1)
+i = λ(t)
+i + ρ(t)vi(¯x(t)), i ∈C t,
+ρ(t+1) =
+{
+min(γρ(t), ρmax), V (t)
+Ct > 0,
+ρ(t), V (t)
+Ct = 0.
+(5)
+Multipliers start at zero, making nonnegative projection inactive. Inactive multipliers remain unchanged.
+When a proposal is rejected, the retained incumbent drives the update. Thus the accumulated pressure reﬂects
+the search state that persists into the next round, while rejected attempts remain available to replay. Empty
+rounds skip updates. Active-set expansion resets ρ to ρ0 > 0 before rescoring, retaining multipliers.
+The current-status block reports each active property’s value, threshold, direction, signed margin, and viola-
+tion. The history block reports λi, accumulated from accepted-state violations. These blocks answer different
+questions. Measurements determine which constraints the current molecule satisﬁes, while multiplier history
+identiﬁes constraints that have repeatedly resisted the search. A feasible molecule can retain a large multiplier
+because earlier accepted states violated that constraint. This pressure increases the cost of reintroducing the
+violation in future candidates. Conversely, zero pressure alone does not establish feasibility. The Reviewer
+receives each candidate’s own measurements together with this history, allowing proposal guidance to use
+both present satisfaction and persistent constraint priorities.
+3.4 S TRUCTURE -I NDEXED EXPERIENCE REPLAY
+Chemical-CER retrieves structurally relevant attempts using source Morgan ﬁngerprints (radius 2, 2048
+bits) ( Rogers & Hahn , 2010). A completed round records incoming incumbent y(t), round-best candidate
+c(t), target/ADMET changes, and the scalar change under the collection-time objective. Replay stores the
+evaluated attempt (y(t), c(t)), and the acceptance rule tracks (y(t), ¯x(t)). The stored scalar delta retains the
+collection-time objective.
+5
+
+===== PAGE 6 =====
+Preprint
+Retrieve up to k eligible transitions by source-structure proximity:
+E (t)
+k = TopKe∈Deligible
+t
+(
+−∥fpy(t)− fpsrc(e)∥2
+)
+. (6)
+Replay provides target-only information in Phases 1–2 and combined-objective information for all seven con-
+straints in Phase 3, with phase-speciﬁc retrieval limits (Appendix G). Retrieved canonical source/destination
+pairs and ﬁnite numeric deltas condition the Generator alongside ﬁxed RAG context. Each novel proposal
+is evaluated before acceptance. The run-local archive persists across tasks. The CER ablation evaluates the
+contribution of this replay component.
+3.5 C ONSTRAINT SCHEDULING
+A ﬁxed target-ﬁrst curriculum ( Hou, 2026) activates no ADMET constraints in rounds [0, 20),
+MW/logP/QED/SA in [20, 60), and all seven in [60,∞). Round indices determine the constraint-activation
+boundaries. Expansion adds measurements to evaluation and context, resetting quadratic pressure while re-
+taining multipliers. Stagnation triggers bounded context recovery with the same activation schedule and
+acceptance rule (Appendix H). A continuous sigmoid-based ADMET score supports replay annotation and
+Pareto evaluation (Eq. A1). Hard feasibility requires all seven inequalities, and acceptance uses Eq. 3.
+3.6 M ULTIPLIER DYNAMICS
+Index only completed updates after full activation, with V (t) = ∑
+i vi(¯x(t)). λ(0) includes prior-phase history.
+For any ﬁnite T , telescoping Eq. 5 gives the exact identity
+T −1∑
+t=0
+ρ(t)V (t) =
+K∑
+i=1
+(λ(T )
+i − λ(0)
+i ). (7)
+Each multiplier accumulates the ρ-weighted violations of accepted or retained states. When constraint i
+is satisﬁed, its increment is zero while earlier pressure persists. At ﬁxed measurements and ρ, increasing
+λi by ∆λi lowers a candidate’s score by ∆λivi(x). The accumulated history therefore raises the cost of
+reintroducing a violation. Appendix A derives the identity and states a conditional vanishing-violation result
+under bounded multipliers.
+4 E XPERIMENTS
+4.1 T ASKS , M ETRICS , AND COMPARISON PROTOCOL
+We evaluate glycogen synthase kinase 3 beta (GSK3 β), c-Jun N-terminal kinase 3 (JNK3), dopamine re-
+ceptor D2 (DRD2), Sitagliptin multi-property optimization (MPO), and Albuterol similarity, spanning pre-
+dicted target activity, a multi-property objective, and structural similarity. These tasks test different routes
+to target improvement under the same seven-property screen. ADMET-PMO adds the seven shared prop-
+erty constraints illustrated in Figure 1(a), with thresholds in Table A4. Target AUC Top-10 measures target
+progress (Gao et al. , 2022). AA-AUC averages the running best target score among molecules satisfying all
+seven constraints. Pareto hypervolume (PHV) measures dominated area in target–continuous-ADMET-score
+space (Zitzler et al., 2003). PHV uses both feasible and infeasible evaluated molecules. Deﬁnitions appear in
+Appendix E.
+All main and ablation conﬁgurations use ﬁve independent runs indexed 0–4. All methods are allowed up to
+1,000 unique target evaluations per task/run, including initialization. AUC uses a common 1,000-call horizon.
+SEISMO follows its original short-run protocol ( Krüger et al. , 2026). After termination, its ﬁnal Top-10
+and best-feasible scores are carried forward over the remaining horizon. All LLM methods use MiniMax-
+M3 (MiniMax, 2026).† denotes independent MOLLEO/ExLLM reimplementations, while SEISMO uses its
+6
+
+===== PAGE 7 =====
+Preprint
+Graph-GA
+REINVENT4MOLLEO†
+ExLLM†SEISMO
+PharmAgent
+0
+0.5
+1
+Graph-GA
+REINVENT4MOLLEO†
+ExLLM†SEISMO
+PharmAgent
+0
+0.5
+1
+Graph-GA
+REINVENT4MOLLEO†
+ExLLM†SEISMO
+PharmAgent
+0
+0.5
+1
+GA-FFGA-FPR4-FPMOL-FFEX-FFSEI-FF
+PharmAgent
+0
+0.5
+1
+GA-FFGA-FPR4-FPMOL-FFEX-FFSEI-FF
+PharmAgent
+0
+0.5
+1
+GA-FFGA-FPR4-FPMOL-FFEX-FFSEI-FF
+PharmAgent
+0
+0.5
+1
+E1  ·  Target-only search  |  Target AUC Top-10
+E2  ·  Online-constraint search  |  AA-AUC
+(a) GSK3β
++46.9%
+(b) JNK3
++151.2%
+(c) Sitagliptin MPO
++15.8%
+(d) GSK3β
++21.9%
+(e) JNK3
++228.9%
+(f) DRD2
++80.7%
+Figure 2: Task-level comparisons against (a–c) original baselines in E1 and (d–f) all six online strategies in
+E2. Bars show means, dots all ﬁve runs, and percentages gains over the strongest baseline in each panel. The
+selected tasks highlight leading means. Full task results appear in Appendix B. GA, R4, MOL, EX, and SEI
+abbreviate Graph-GA, REINVENT4, MOLLEO, ExLLM, and SEISMO. FF denotes feasibility-ﬁrst and FP
+ﬁxed-penalty search. SEISMO uses terminal-score carry-forward. † marks independent reimplementations.
+released prompts and trajectory protocol. Table rankings compare ﬁve-run means. P HARM AGENT scores 26
+seed molecules within budget. Defaults are ρ0 = 1, γ = 1.5, ρmax = 100, and top-5 retrieval.
+E1 compares ﬁve original baselines. E2 compares six online strategies because Graph-GA uses both ﬁxed-
+penalty (FP) and feasibility-ﬁrst (FF) search. FP keeps violation weights constant within each run. FF prior-
+itizes constraint satisfaction over target score. All online baselines use the same seven constraints, ADMET-
+AI 1.4.0 predictions, and thresholds from their ﬁrst evaluation. Original trajectories receive separate post-hoc
+annotation. Aggregate uncertainty averages the ﬁve ﬁxed tasks within each run, then uses ﬁve run-level obser-
+vations. We report unadjusted 95% intervals. E2–E1 differences use run-index matching, and cross-method
+differences use independent-group errors (Appendix B).
+4.2 E1 T ARGET -O NLY SEARCH CAPABILITY
+E1 disables ADMET guidance and Lagrangian penalties, retaining target-only scoring and validity checks.
+PHARM AGENT achieves the highest target-AUC sum of 3.9208, surpassing MOLLEO † at 2.8565 by 37.3%.
+It leads GSK3β, JNK3, and Sitagliptin and ranks second on DRD2 and Albuterol. The aggregate target-AUC
+difference from each of the four original full-budget baselines has a positive 95% interval (Appendix B).
+7
+
+===== PAGE 8 =====
+Preprint
+Table 2: Standard PMO target AUC Top-10 (higher is better), averaged over ﬁve runs. Sum adds the ﬁve task
+means. All LLM methods use MiniMax-M3.† and SEISMO’s original short-run protocol with terminal-score
+carry-forward are deﬁned in Section 4.1. Best/second-best means are bold/underlined.
+Method GSK3β JNK3 DRD2 Sitagliptin Albuterol Sum
+Graph-GA 0.4600 0.1814 0.6939 0.2213 0.4423 1.9988
+REINVENT4 0.3792 0.1742 0.6917 0.1513 0.3947 1.7911
+MOLLEO† 0.5028 0.3658 0.8041 0.2999 0.8840 2.8565
+ExLLM† 0.5150 0.3302 0.7981 0.2657 0.8860 2.7950
+SEISMO 0.4850 0.2326 0.9756 0.1344 0.9791 2.8067
+PHARM AGENT 0.7564 0.9186 0.9494 0.3472 0.9492 3.9208
+Table 3: Online-constraint results across ﬁve tasks and ﬁve runs. Target AUC Sum adds task means. The
+other metrics average tasks and runs. All methods receive online constraints. FF denotes feasibility-ﬁrst and
+FP ﬁxed-penalty search. Best/second-best means are bold/underlined. Figure 3 reports uncertainty.
+Method Target AUC Sum AA-AUC PHV Top-1 Top-10
+Graph-GA (FF) 1.0675 0.2536 0.4181 0.4375 0.3219
+Graph-GA (FP) 1.1809 0.2711 0.4630 0.4837 0.3575
+REINVENT4 (FP) 1.8337 0.2859 0.5622 0.6221 0.4663
+MOLLEO† (FF) 2.0465 0.4006 0.6430 0.6788 0.5864
+ExLLM† (FF) 2.2732 0.4602 0.6514 0.6647 0.6352
+SEISMO (FF) 2.9319 0.3838 0.5795 0.6405 0.5978
+PHARM AGENT (E2) 3.6936 0.7076 0.8248 0.8514 0.8305
+4.3 E2 S EARCH WITH ONLINE CONSTRAINTS
+PHARM AGENT leads all six online strategies on every aggregate metric in Table 3. Its target-AUC sum of
+3.6936 exceeds the strongest baseline, SEISMO FF (2.9319), by 26.0%.
+For AA-AUC and PHV , ExLLM FF is the strongest baseline. P HARM AGENT improves its 0.4602 AA-AUC
+to 0.7076 (53.8%) and its 0.6514 PHV to 0.8248 (26.6%). The AA-AUC difference is 0.2474, with an
+unadjusted 95% interval of [0.1355, 0.3594].
+0 2 4
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO FF
+ExLLM FF
+SEISMO FF
+PharmAgent
+(a) Target AUC Sum
+0.0 0.5 1.0
+(b) AA-AUC
+0.0 0.5 1.0
+(c) PHV
+Figure 3: Online comparison across ﬁve tasks and ﬁve runs. (a–c) Target-AUC sum, AA-AUC, and PHV
+for six baseline strategies and PharmAgent E2. Feasibility-ﬁrst (FF) search prioritizes constraint satisfaction.
+Fixed-penalty (FP) search penalizes total normalized violation with a weight ﬁxed within each run. Bars
+show means with unadjusted 95% intervals after within-run task aggregation. All methods have the same
+budget allowance. SEISMO retains its short-run protocol and terminal-score carry-forward.
+8
+
+===== PAGE 9 =====
+Preprint
+MW
+logP
+QED
+SACYP2D6
+hERG
+Caco-2
+MW
+logP
+QED
+SACYP2D6
+hERG
+Caco-2
+MW
+logP
+QED
+SACYP2D6
+hERG
+Caco-2
+MW
+logP
+QED
+SACYP2D6
+hERG
+Caco-2
+MW
+logP
+QED
+SACYP2D6
+hERG
+Caco-2
+(a) GSK3β
+Target 0.200 → 0.920
+Violations 2 → 0
+(b) JNK3
+Target 1.000 → 0.860
+Violations 1 → 0
+(c) DRD2
+Target 1.000 → 0.986
+Violations 3 → 0
+(d) Sitagliptin MPO
+Target 0.144 → 0.453
+Violations 1 → 0
+(e) Albuterol similarity
+Target 1.000 → 1.000
+Violations 1 → 0
+(f) GSK3β structures
+Before full constraints
+Final accepted
+Search interval
+Before full constraints Final accepted Threshold (0.5)
+Figure 4: Five molecular cases (run 0, before full constraint activation at round 59 versus ﬁnal accepted
+state). (a–e) Sigmoid desirability proﬁles under all seven requirements. Outward is favorable, and the 0.5
+ring marks thresholds. CYP2D6 denotes inhibition. Target scores and violation counts accompany each
+proﬁle. (f) Recorded GSK3 β structures with an arrow spanning subsequent rounds. ADMET endpoints are
+predictions.
+PHARM AGENT leads on target-AUC sum (Figure 3(a)), AA-AUC (Figure 3(b)), and PHV (Figure 3(c)), with
+positive difference intervals against every online strategy on all three metrics. With shared online constraint
+measurements, P HARM AGENT leads target progress, feasible-solution progress, and Pareto coverage. Its
+target-AUC advantage extends to all ﬁve tasks, and it also leads AA-AUC on GSK3 β, JNK3, and DRD2.
+Impact of online constraint control. Post-hoc evaluation of E1’s unchanged trajectories gives AA-AUC
+0.5328, versus E2’s 0.7076, a 32.8% improvement with difference interval [0.0511, 0.2987]. All ﬁve run-level
+aggregate differences are positive. Figure 2(a–c) highlights target-search gains over the original baselines,
+while Figure 2(d–f) shows AA-AUC gains over their online adaptations. Appendix B provides budgeted
+progress in Figure A1(a) and all ﬁve E2–E1 task effects in Figure A1(b). Task-level AA-AUC intervals
+exclude zero for DRD2, Sitagliptin, and Albuterol. Online feedback thus turns strong target search into
+stronger feasible-solution search.
+9
+
+===== PAGE 10 =====
+Preprint
+Table 4: ADMET-PMO ablations over ﬁve tasks and ﬁve runs. The full-system reference matches Table 3.
+Target AUC Sum adds task means. AA-AUC and PHV average tasks and runs. Best/second-best means are
+bold/underlined.
+V ariant Target AUC Sum AA-AUC PHV
+PHARM AGENT (full system) 3.6936 0.7076 0.8248
+w/o Lagrangian 3.6535 0.4781 0.7815
+w/o Chemical-CER 3.4008 0.5459 0.7904
+w/o Curriculum 3.1981 0.6260 0.7295
+w/o MedChem-RAG 2.9977 0.4146 0.6593
+w/o Reviewer agent 3.3024 0.5566 0.7100
+Single-agent baseline 3.2698 0.3000 0.6546
+4.4 M ECHANISM ABLATIONS
+The full system outperforms all six variants on all three aggregate metrics (Table 4). Removing Lagrangian
+feedback reduces AA-AUC by 32.4%, compared with a 1.1% reduction in target-AUC sum. The loss is con-
+centrated in feasible-solution progress. Removing CER reduces target-AUC sum by 7.9% and AA-AUC by
+22.9%. Removing Curriculum reduces them by 13.4% and 11.5%, and PHV by 11.6%. MedChem-RAG re-
+moval produces the largest target-AUC reduction among component removals (18.8%) and lowers AA-AUC
+by 41.4%. Reviewer removal lowers AA-AUC by 21.3%. The full system reaches 0.7076 AA-AUC versus
+0.3000 for the single-agent conﬁguration. The distinct loss proﬁles reveal complementary contributions from
+constraint feedback, structural experience, scheduling, chemical priors, and review.
+4.5 M OLECULAR CASES OF PROPERTY -V IOLATION RESOLUTION
+Figure 4(a–e) compares property proﬁles before full constraint activation (round 59) and at termination, us-
+ing run 0 uniformly across tasks. Figure 4(f) shows the corresponding GSK3 β structures. P HARM AGENT
+resolves property violations in all ﬁve illustrated trajectories. Every earlier state violates at least one of the
+ﬁnal seven requirements, and every ﬁnal state satisﬁes all seven. Target scores increase for GSK3 β (0.20 to
+0.92) and Sitagliptin (0.1443 to 0.4533), remain at 1.00 for Albuterol, and decrease for JNK3 (1.00 to 0.86)
+and DRD2 (1.0000 to 0.9864). For GSK3 β, the predicted hERG block score falls from 0.5754 to 0.3496
+(bound 0.5), while Caco-2 increases from −5.5022 to−4.4525 (bound−5.15). Appendix C provides all
+structure pairs, raw properties, and the selection protocol.
+5 D ISCUSSION AND CONCLUSION
+PHARM AGENT achieves leading aggregate performance through adaptive external search state and frozen
+language models. E1 leads aggregate target search, and E2 outperforms all six online strategies on all ﬁve
+aggregate metrics. The Lagrangian controller gives constraint history an explicit role in acceptance and
+proposal feedback, while Chemical-CER and the curriculum supply relevant measured experience and coor-
+dinate constraint activation. Removing Lagrangian feedback lowers AA-AUC by 32.4%. Every component
+removal lowers all three aggregate metrics, and all ﬁve molecular cases resolve their property violations. To-
+gether, these results establish adaptive constraint feedback and structured chemical experience as a powerful
+approach to molecular search with frozen models.
+Limitations. Evaluation covers ﬁve tasks and predicted properties. Multiplier boundedness remains an
+assumption of the appendix analysis, and ablation uncertainty is unavailable. Appendix M summarizes the
+few task-level exceptions, validation needs, and computational-cost considerations.
+10
+
+===== PAGE 11 =====
+Preprint
+AI U SE STATEMENT
+Generative AI tools were used solely for language editing and polishing, including improvements to grammar,
+wording, clarity, and readability. All scientiﬁc content, methodology, experiments, analyses, results, and
+conclusions were developed by the authors. All AI-assisted edits were reviewed and veriﬁed by the authors,
+who take full responsibility for the ﬁnal manuscript.
+ETHICS STATEMENT
+This study evaluates computational molecular optimization using predicted properties. It does not establish
+experimental drug safety or clinical efﬁcacy. Candidate structures and predicted ADMET measurements
+require independent validation before practical use. We discuss potential misuse and the limits of surrogate
+evaluation in Appendix J.
+REPRODUCIBILITY STATEMENT
+We will release the complete source code for running the P HARM AGENT agent system upon acceptance.
+REFERENCES
+Dimitri P . Bertsekas. On penalty and multiplier methods for constrained minimization. SIAM Journal on
+Control and Optimization, 14(2):216–235, 1976. doi: 10.1137/0314017.
+Dimitri P Bertsekas. Nonlinear Programming. Athena Scientiﬁc, 2nd edition, 1999.
+G Richard Bickerton, Gaia V Paolini, Jérémy Besnard, Sorel Muresan, and Andrew L Hopkins. Quantifying
+the chemical beauty of drugs. Nature Chemistry, 4:90–98, 2012.
+Stephen Boyd and Lieven V andenberghe. Convex Optimization. Cambridge University Press, 2004.
+Lianghong Chen, Dongkyu Eugene Kim, Mike Domaratzki, and Pingzhao Hu. Uncertainty-aware multi-
+objective reinforcement learning-guided diffusion models for 3D de novo molecular design. In Advances
+in Neural Information Processing Systems , volume 38, 2025. doi: 10.52202/085713-4157.
+Alexander G Dossetter, Edward J Griffen, and Andrew G Leach. Matched molecular pair analysis in drug
+discovery. Drug Discovery Today, 18:724–731, 2013.
+Peter Ertl and Ansgar Schuffenhauer. Estimation of synthetic accessibility score of drug-like molecules based
+on molecular complexity and fragment contributions. Journal of Cheminformatics, 1:8, 2009.
+Yin Fang, Ningyu Zhang, Zhuo Chen, Lingbing Guo, Xiaohui Fan, and Huajun Chen. Domain-agnostic
+molecular generation with chemical feedback. In International Conference on Learning Representations ,
+2024.
+Wenhao Gao and Connor W. Coley. The synthesizability of molecules proposed by generative models. Jour-
+nal of Chemical Information and Modeling , 60(12):5714–5723, 2020. doi: 10.1021/acs.jcim.0c00174.
+Wenhao Gao, Tianfan Fu, Jimeng Sun, and Connor W Coley. Sample efﬁciency matters: A benchmark
+for practical molecular optimization. In Advances in Neural Information Processing Systems (NeurIPS),
+Datasets and Benchmarks Track, 2022.
+Rafael Gómez-Bombarelli, Jennifer N. Wei, David Duvenaud, José Miguel Hernández-Lobato, Benjamín
+Sánchez-Lengeling, Dennis Sheberla, Jorge Aguilera-Iparraguirre, Timothy D. Hirzel, Ryan P . Adams,
+and Alán Aspuru-Guzik. Automatic chemical design using a data-driven continuous representation of
+molecules. ACS Central Science, 4(2):268–276, 2018. doi: 10.1021/acscentsci.7b00572.
+11
+
+===== PAGE 12 =====
+Preprint
+Ed Griffen, Andrew G. Leach, Graeme R. Robb, and Daniel J. Warner. Matched molecular pairs as a medici-
+nal chemistry tool. Journal of Medicinal Chemistry , 54(22):7739–7750, 2011. doi: 10.1021/jm200452d.
+Junyu Hou. De novo molecular design enabled by direct preference optimization and curriculum learn-
+ing. In Machine Learning and Knowledge Discovery in Databases. Research Track. ECML PKDD
+2025, volume 16018 of Lecture Notes in Computer Science , pp. 95–111. Springer, 2026. doi: 10.1007/
+978-3-032-06106-5_6.
+Jan H Jensen. A graph-based genetic algorithm and generative model/Monte Carlo tree search for the explo-
+ration of chemical space. Chemical Science, 10(12):3567–3572, 2019.
+Jeff Johnson, Matthijs Douze, and Hervé Jégou. Billion-scale similarity search with GPUs. IEEE Transac-
+tions on Big Data , 7(3):535–547, 2021. doi: 10.1109/TBDA TA.2019.2921572.
+Fabian P Krüger, Andrea Hunklinger, Adrian Wolny, Tim J Adler, Igor Tetko, and Santiago David Vil-
+lalba. SEISMO: Increasing sample efﬁciency in molecular optimization with a trajectory-aware LLM
+agent. arXiv preprint arXiv:2602.00663v1, 2026.
+Greg Landrum, Paolo Tosco, Brian Kelley, et al. RDKit: Open-source cheminformatics. Zenodo, 2024. URL
+https://doi.org/10.5281/zenodo.10793672. V ersion 2023.09.6.
+Yitao Liu, Chenglei Si, Karthik R Narasimhan, and Shunyu Y ao. Contextual experience replay for self-
+improvement of language agents. In Proceedings of the 63rd Annual Meeting of the Association for
+Computational Linguistics (V olume 1: Long Papers) , pp. 14179–14198. Association for Computational
+Linguistics, 2025. doi: 10.18653/v1/2025.acl-long.694.
+Hannes H Loefﬂer, Jiazhen He, Alessandro Tibo, Jon Paul Janet, Alexey V oronov, Lewis H Mervin, and Ola
+Engkvist. REINVENT 4: Modern AI-driven generative molecule design. Journal of Cheminformatics, 16
+(1):20, 2024.
+Andres M. Bran, Sam Cox, Oliver Schilter, Carlo Baldassari, Andrew D. White, and Philippe Schwaller.
+Augmenting large language models with chemistry tools. Nature Machine Intelligence , 6(5):525–535,
+2024. doi: 10.1038/s42256-024-00832-8.
+MiniMax. OpenAI SDK. https://platform.minimax.io/docs/api-reference/
+text-openai-api , 2026. Accessed September 21, 2026.
+Yifan Niu, Ziqi Gao, Tingyang Xu, Y ang Liu, Y atao Bian, Y u Rong, Junzhou Huang, and Jia Li. Inver-
+sionGNN: A dual path network for multi-property molecular optimization. In International Conference on
+Learning Representations, 2025.
+Nian Ran, Y ue Wang, Xiaoyuan Zhang, Zhongzheng Li, Qingsong Ran, Wenhao Li, and Richard All-
+mendinger. ExLLM: Experience-enhanced LLM optimization for molecular design and beyond. arXiv
+preprint arXiv:2502.12845, 2025.
+David Rogers and Mathew Hahn. Extended-connectivity ﬁngerprints. Journal of Chemical Information and
+Modeling, 50:742–754, 2010.
+Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik Narasimhan, and Shunyu Y ao. Reﬂexion: Lan-
+guage agents with verbal reinforcement learning. In Advances in Neural Information Processing Systems ,
+volume 36, 2023. doi: 10.52202/075280-0377.
+Kyle Swanson, Parker Walther, Jeremy Leitz, Souhrid Mukherjee, Joseph C. Wu, Rabindra V . Shivnaraine,
+and James Zou. ADMET-AI: A machine learning ADMET platform for evaluation of large-scale chemical
+libraries. Bioinformatics, 40(7):btae416, 2024. doi: 10.1093/bioinformatics/btae416.
+12
+
+===== PAGE 13 =====
+Preprint
+Haorui Wang, Marta Skreta, Cher-Tian Ser, Wenhao Gao, Lingkai Kong, Felix Strieth-Kalthoff, Chenru Duan,
+Y uchen Zhuang, Y ue Y u, Y anqiao Zhu, Y uanqi Du, Alán Aspuru-Guzik, Kirill Neklyudov, and Chao Zhang.
+Efﬁcient evolutionary search over chemical space with large language models. In International Conference
+on Learning Representations (ICLR) , 2025.
+David Weininger. SMILES, a chemical language and information system. 1. introduction to methodology
+and encoding rules. Journal of Chemical Information and Computer Sciences , 28(1):31–36, 1988. doi:
+10.1021/ci00057a005.
+Chengrun Y ang, Xuezhi Wang, Yifeng Lu, Hanxiao Liu, Quoc V . Le, Denny Zhou, and Xinyun Chen. Large
+language models as optimizers. In International Conference on Learning Representations , 2024. URL
+https://openreview.net/forum?id=Bb4VGOWELI.
+Shunyu Y ao, Jeffrey Zhao, Dian Y u, Nan Du, Izhak Shafran, Karthik Narasimhan, and Y uan Cao. ReAct:
+Synergizing reasoning and acting in language models. In International Conference on Learning Represen-
+tations (ICLR), 2023.
+Barbara Zdrazil, Eloy Felix, Fiona Hunter, Emma J Manners, James Blackshaw, Sybilla Corbett, Marleen
+de V eij, Harris Ioannidis, David Mendez Lopez, Juan F Mosquera, Maria Paula Magarinos, Nicolas Bosc,
+Ricardo Arcila, Tevﬁk Kizilören, Anna Gaulton, A Patrícia Bento, Melissa F Adasme, Peter Monecke,
+Gregory A Landrum, and Andrew R Leach. The ChEMBL database in 2023: A drug discovery platform
+spanning multiple bioactivity data types and time periods. Nucleic Acids Research, 52(D1):D1180–D1192,
+2024. doi: 10.1093/nar/gkad1004.
+Eckart Zitzler, Lothar Thiele, Marco Laumanns, Carlos M. Fonseca, and Viviane Grunert da Fonseca. Perfor-
+mance assessment of multiobjective optimizers: An analysis and review. IEEE Transactions on Evolution-
+ary Computation, 7(2):117–132, 2003.
+13
+
+===== PAGE 14 =====
+Preprint
+APPENDIX
+The appendices follow the main paper’s questions. Appendix A derives multiplier accumulation and condi-
+tional feasibility. Appendix B reports run-level uncertainty and complete task results. Appendix C documents
+the molecular cases, and Appendix D details the online adaptations, task-level margins, and changes from the
+original protocols. Appendices E–H specify metrics, prompts, replay, and computational accounting. Ap-
+pendix M collects the limitations and remaining validation questions.
+A C UMULATIVE VIOLATION AND CONDITIONAL FEASIBILITY
+Update sequence. Here t indexes completed updates after the full constraint set is active. Empty or failed
+rounds are excluded, and λ(0)≥ 0 retains earlier-phase history. The state ¯x(t) is the accepted candidate or
+retained incumbent from Eq. 4. Write v(t)
+i = vi(¯x(t))≥ 0 and V (t) = ∑
+i v(t)
+i .
+Exact accumulation. Since ρ(t) > 0 and violations are nonnegative, Eq. 5 keeps every multiplier non-
+negative. Any nonnegative projection is therefore inactive. Telescoping the update for a single constraint
+gives
+λ(T )
+i − λ(0)
+i =
+T −1∑
+t=0
+ρ(t)v(t)
+i .
+Summing over i yields Eq. 7. These identities hold for every ﬁnite update sequence and follow algebraically
+from the rule, without assumptions on convexity or proposal quality.
+Proposition 1 (Conditional vanishing violation) . Consider an inﬁnite sequence of completed updates under
+Eq. 5 after full constraint activation. Suppose ρ(t)≥ ρmin > 0 for all t and, for each i, there is a ﬁnite
+constant Mi such that λ(t)
+i ≤ Mi for all t. Then ∑∞
+t=0 V (t) <∞ and V (t)→ 0.
+Proof. For every ﬁnite T , the accumulation identity gives
+0≤
+T −1∑
+t=0
+ρ(t)V (t) =
+K∑
+i=1
+(λ(T )
+i − λ(0)
+i )≤
+K∑
+i=1
+(Mi− λ(0)
+i ).
+The upper bound is independent of T . Nonnegativity and ρ(t)≥ ρmin therefore imply
+∞∑
+t=0
+V (t)≤ 1
+ρmin
+K∑
+i=1
+(Mi− λ(0)
+i ) <∞.
+A summable nonnegative sequence tends to zero.
+Interpretation of the assumptions. For γ ≥ 1 and ρmax ≥ ρ0 > 0, the penalty update and active-set
+resets preserve ρ(t) ≥ ρ0. The cap on ρ does not bound the multipliers, whose increments continue to
+accumulate. Uniform multiplier boundedness is an assumption of Proposition 1 and is not established for the
+implemented LLM search. The proposition describes a consequence of controlled cumulative violation, not
+an unconditional convergence guarantee for the search.
+Limit points. Under the proposition’s assumptions, suppose a subsequence ¯x(tm) converges to x⋆∈X in
+a ﬁxed metric and each vi is continuous at x⋆. Then 0≤ vi(¯x(tm))≤ V (tm)→ 0 implies vi(x⋆) = 0 for
+every i. This establishes feasibility of such a limit point, without asserting that the molecular sequence has a
+limit point or converges.
+14
+
+===== PAGE 15 =====
+Preprint
+B S TATISTICAL REPORTING AND DETAILED RESULTS
+All ﬁve tasks and ﬁve runs are retained. For a ﬁxed-task aggregate, ﬁrst average the ﬁve task values within
+each run index and then estimate uncertainty from the ﬁve resulting observations. Individual molecules
+and the 25 task/run cells are not treated as independent repetitions. For values z1, . . . , z5, intervals are
+¯z±t0.975,4sz/
+√
+5, with t0.975,4 = 2.776445. For E2–E1 comparisons, zj is the within-index difference. Index
+matching is not a claim of common LLM random draws. Cross-method differences use
+√
+s2
+A/5 + s2
+B/5 and
+the same conservative critical value. These intervals assume approximately normal run-level variation and
+are unadjusted descriptive intervals, not simultaneous claims over all comparisons. AUC sums are ﬁve times
+their corresponding ﬁxed-task means, so their intervals scale by ﬁve and provide no additional independent
+evidence.
+For aggregate E2–E1 AA-AUC, the difference is 0.1749 with matched interval [0.0511, 0.2987]. The
+independent-group sensitivity check gives [0.0195, 0.3303]. E2–E1 aggregate target AUC, Top-1, Top-10,
+and PHV intervals cross zero, which does not establish equivalence. Against original MOLLEO with post-
+hoc annotation, E2 has positive aggregate difference intervals for Top-1, target AUC, AA-AUC, and PHV .
+The ﬁnal Top-10 interval crosses zero. Against all six online strategies, all 18 target-AUC, AA-AUC, and
+PHV difference intervals are positive (Figure A9(d–f)). These are separate, unadjusted comparisons. The
+online AA-AUC differences are 0.2474 versus ExLLM FF, 0.3070 versus MOLLEO FF, and 0.3238 versus
+SEISMO FF.
+0 500 1000
+Unique target-oracle calls
+0.0
+0.5
+1.0Best feasible target score
+(a)   Feasible-solution progress
+E1 (post-hoc)
+E2 (online)
+−0.5 0.0 0.5
+AA-AUC difference (E2 − E1)
+GSK3β
+JNK3
+DRD2
+Sitagliptin
+Albuterol
+Five-task mean
+(b)   Task-level effects
+Figure A1: Online control improves feasible-solution search. (a) Best feasible target score versus unique
+oracle calls, including initialization. Lines average ﬁve task-averaged runs, with pointwise 95% intervals.
+(b) E2–E1 AA-AUC differences for every task and the ﬁxed ﬁve-task mean, with run-index-matched 95%
+intervals ( n = 5 , unadjusted). Shared indices do not imply shared LLM draws. An independent-group
+aggregate check remains positive (Appendix B).
+Online and original-protocol comparisons. Figures A2–A4 show every online strategy. Figures A5–A7
+retain the original baselines and PharmAgent E1/E2. In each ﬁgure, panels (a–e) show GSK3 β, JNK3, DRD2,
+Sitagliptin MPO, and Albuterol similarity, respectively, and panel (f) shows the ﬁxed-task aggregate. All ﬁve
+runs are shown. Table A10 retains the post-hoc aggregate comparison. Relative to original MOLLEO, E2
+improves target-AUC sum by 29.3%, AA-AUC by 70.7%, and PHV by 17.6%.
+15
+
+===== PAGE 16 =====
+Preprint
+0.0 0.5 1.0
+Target AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(a)
+ GSK3β
+0.0 0.5 1.0
+Target AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(b)
+ JNK3
+0.0 0.5 1.0
+Target AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(c)
+ DRD2
+0.0 0.5 1.0
+Target AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(d)
+ Sitagliptin MPO
+0.0 0.5 1.0
+Target AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(e)
+ Albuterol similarity
+0.0 0.5 1.0
+Target AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(f)
+ Five-task aggregate
+Figure A2: Target AUC across all six online baseline strategies and PharmAgent E2. Diamonds denote means,
+grey dots the ﬁve runs, and bars unadjusted 95% Student- t intervals. Panels (a–e) show the ﬁve tasks. Panel
+(f) averages tasks within each run before estimating uncertainty. Intervals are not clipped to [0, 1].† denotes
+independent MiniMax-M3 reimplementations. *SEISMO follows its short-run protocol with terminal-score
+carry-forward. FF denotes feasibility-ﬁrst and FP ﬁxed-penalty search.
+16
+
+===== PAGE 17 =====
+Preprint
+0.0 0.5 1.0
+AA-AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(a)
+ GSK3β
+0.0 0.5 1.0
+AA-AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(b)
+ JNK3
+0.0 0.5 1.0
+AA-AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(c)
+ DRD2
+0.0 0.5 1.0
+AA-AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(d)
+ Sitagliptin MPO
+0.0 0.5 1.0
+AA-AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(e)
+ Albuterol similarity
+0.0 0.5 1.0
+AA-AUC
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(f)
+ Five-task aggregate
+Figure A3: AA-AUC across all six online baseline strategies and PharmAgent E2. Diamonds denote means,
+grey dots the ﬁve runs, and bars unadjusted 95% Student- t intervals. Panels (a–e) show the ﬁve tasks. Panel
+(f) averages tasks within each run before estimating uncertainty. Intervals are not clipped to [0, 1].† denotes
+independent MiniMax-M3 reimplementations. *SEISMO follows its short-run protocol with terminal-score
+carry-forward. FF denotes feasibility-ﬁrst and FP ﬁxed-penalty search.
+17
+
+===== PAGE 18 =====
+Preprint
+0.0 0.5 1.0
+PHV
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(a)
+ GSK3β
+0.0 0.5 1.0
+PHV
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(b)
+ JNK3
+0.0 0.5 1.0
+PHV
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(c)
+ DRD2
+0.0 0.5 1.0
+PHV
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(d)
+ Sitagliptin MPO
+0.0 0.5 1.0
+PHV
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(e)
+ Albuterol similarity
+0.0 0.5 1.0
+PHV
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO† FF
+ExLLM† FF
+SEISMO* FF
+PharmAgent E2
+(f)
+ Five-task aggregate
+Figure A4: Pareto hypervolume across all six online baseline strategies and PharmAgent E2. Diamonds
+denote means, grey dots the ﬁve runs, and bars unadjusted 95% Student- t intervals. Panels (a–e) show the
+ﬁve tasks. Panel (f) averages tasks within each run before estimating uncertainty. Intervals are not clipped to
+[0, 1].† denotes independent MiniMax-M3 reimplementations. *SEISMO follows its short-run protocol with
+terminal-score carry-forward. FF denotes feasibility-ﬁrst and FP ﬁxed-penalty search.
+18
+
+===== PAGE 19 =====
+Preprint
+0.0 0.5 1.0
+Target AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(a)
+ GSK3β
+0.0 0.5 1.0
+Target AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(b)
+ JNK3
+0.0 0.5 1.0
+Target AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(c)
+ DRD2
+0.0 0.5 1.0
+Target AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(d)
+ Sitagliptin MPO
+0.0 0.5 1.0
+Target AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(e)
+ Albuterol similarity
+0.0 0.5 1.0
+Target AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(f)
+ Five-task aggregate
+Figure A5: Target AUC for the ﬁve original baselines and PharmAgent E1/E2. Baselines and E1 receive post-
+hoc property annotation, while E2 uses online constraints. Diamonds denote means, grey dots the ﬁve runs,
+and bars unadjusted 95% Student- t intervals. Panels (a–e) show the ﬁve tasks. Panel (f) averages tasks within
+each run before estimating uncertainty. Intervals are not clipped to [0, 1].† denotes independent MiniMax-
+M3 reimplementations. *SEISMO follows its short-run protocol with terminal-score carry-forward.
+19
+
+===== PAGE 20 =====
+Preprint
+0.0 0.5 1.0
+AA-AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(a)
+ GSK3β
+0.0 0.5 1.0
+AA-AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(b)
+ JNK3
+0.0 0.5 1.0
+AA-AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(c)
+ DRD2
+0.0 0.5 1.0
+AA-AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(d)
+ Sitagliptin MPO
+0.0 0.5 1.0
+AA-AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(e)
+ Albuterol similarity
+0.0 0.5 1.0
+AA-AUC
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(f)
+ Five-task aggregate
+Figure A6: AA-AUC for the ﬁve original baselines and PharmAgent E1/E2. Baselines and E1 receive post-
+hoc property annotation, while E2 uses online constraints. Diamonds denote means, grey dots the ﬁve runs,
+and bars unadjusted 95% Student- t intervals. Panels (a–e) show the ﬁve tasks. Panel (f) averages tasks within
+each run before estimating uncertainty. Intervals are not clipped to [0, 1].† denotes independent MiniMax-
+M3 reimplementations. *SEISMO follows its short-run protocol with terminal-score carry-forward.
+20
+
+===== PAGE 21 =====
+Preprint
+0.0 0.5 1.0
+PHV
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(a)
+ GSK3β
+0.0 0.5 1.0
+PHV
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(b)
+ JNK3
+0.0 0.5 1.0
+PHV
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(c)
+ DRD2
+0.0 0.5 1.0
+PHV
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(d)
+ Sitagliptin MPO
+0.0 0.5 1.0
+PHV
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(e)
+ Albuterol similarity
+0.0 0.5 1.0
+PHV
+Graph-GA
+REINVENT4
+MOLLEO†
+ExLLM†
+SEISMO*
+PharmAgent E1
+PharmAgent E2
+(f)
+ Five-task aggregate
+Figure A7: Pareto hypervolume for the ﬁve original baselines and PharmAgent E1/E2. Baselines and E1
+receive post-hoc property annotation, while E2 uses online constraints. Diamonds denote means, grey dots
+the ﬁve runs, and bars unadjusted 95% Student- t intervals. Panels (a–e) show the ﬁve tasks. Panel (f) av-
+erages tasks within each run before estimating uncertainty. Intervals are not clipped to [0, 1]. † denotes
+independent MiniMax-M3 reimplementations. *SEISMO follows its short-run protocol with terminal-score
+carry-forward.
+21
+
+===== PAGE 22 =====
+Preprint
+C M OLECULAR CASE SELECTION AND PROPERTY MEASUREMENTS
+The ﬁve cases in Figure 4 use a ﬁxed rule that compares the accepted state at round 59 with the ﬁnal accepted
+state in run 0 for every task. Round 59 is the last round before all seven constraints are active under the pre-
+scribed schedule. The same run and stage endpoints are used for every task, independently of the magnitude
+of the target gain. A state can persist across many rounds. Its recorded evaluation call can therefore precede
+the displayed round. All plotted properties reuse stored measurements, and RDKit renders the corresponding
+structures.
+For each raw property gi, the radar radius is the existing desirability di = σ(−5(˜gi− ˜ti)/ri), using the same
+directions, thresholds, and scales as Eq. A1. Thus a threshold maps to 0.5 and larger radii always indicate
+greater satisfaction. No normalization is ﬁtted to the displayed cases and polygon area is not used as a metric.
+The sigmoid can saturate, so Table A1 retains raw values for inspection. The ﬁnal accepted state and the
+historical best feasible molecule are distinct search outputs. In JNK3 run 0, for example, the ﬁnal accepted
+target score is 0.86, while the historical best feasible score is 0.95. The full paired structures are shown in
+Figure A8(a–e), in the same task order.
+Table A1: Raw computed or predicted properties for the ten states in Figure 4. All cases use run 0. Bold
+values violate the displayed threshold. CYP denotes CYP2D6 inhibition. MW is in Da and Caco-2 follows
+the predictor scale. R59 means the accepted state at round 59. Final means the ﬁnal accepted state.
+Task State MW logP QED SA CYP hERG Caco-2
+Bound ≤ 500 ≤ 5 ≥ 0.3 ≤ 6 ≤ 0.5 ≤ 0.5 ≥− 5.15
+GSK3β R59 401.418 4.4596 0.3982 2.4764 0.0553 0.5754 -5.5022
+GSK3β Final 375.215 4.3756 0.6825 2.3569 0.4371 0.3496 -4.4525
+JNK3 R59 378.407 4.0013 0.7018 2.7675 0.0638 0.6968 -4.9562
+JNK3 Final 461.497 3.8926 0.4802 3.4456 0.0391 0.4993 -5.1188
+DRD2 R59 386.511 4.0715 0.6044 2.9680 0.9720 0.9889 -5.2292
+DRD2 Final 442.506 4.9369 0.5675 3.1650 0.4963 0.4977 -5.0343
+Sitagliptin R59 353.321 2.4220 0.7800 2.2937 0.1481 0.6927 -4.7337
+Sitagliptin Final 377.750 2.1280 0.8235 3.0148 0.0292 0.4788 -4.5046
+Albuterol R59 225.288 0.9159 0.6010 2.6694 0.1282 0.1020 -5.4044
+Albuterol Final 237.343 2.3761 0.7533 2.6696 0.1501 0.3435 -4.9597
+22
+
+===== PAGE 23 =====
+Preprint
+Before full constraints Final accepted
+(a) GSK3β
+(b) JNK3
+(c) DRD2
+(d) Sitagliptin MPO
+(e) Albuterol similarity
+Figure A8: All ﬁve recorded accepted-state structure pairs from E2 underlying Figure 4. Panels (a–e) show
+GSK3β, JNK3, DRD2, Sitagliptin MPO, and Albuterol similarity. Every task uses run 0, comparing the
+state before full constraint activation (round 59) with the ﬁnal accepted state. All structures use a common
+bond-length scale, atom-label size, and line width. Structures are drawn from original canonical SMILES.
+Target scores and violation counts appear in Figure 4. Raw properties are reported in Table A1.
+23
+
+===== PAGE 24 =====
+Preprint
+D O NLINE BASELINE ADAPTATIONS AND DETAILED COMPARISONS
+D.1 S HARED COMPARISON DESIGN
+The six online strategies span all ﬁve baseline frameworks, with ﬁve tasks and ﬁve formal runs each (150
+task/run cells). PharmAgent E2 contributes 25 reference cells. Protocols were ﬁxed before observing the
+formal evaluation results. All seven constraints, their thresholds, and normalized violation scales match E2.
+Each unique molecule receives the same property prediction procedure. Graph-GA, REINVENT4, MOLLEO,
+and ExLLM reach 1,000 unique target evaluations per cell. SEISMO retains its original short-run protocol.
+Figure A9(a–c) shows aggregate performance with uncertainty for every online strategy. Figure A9(d–f)
+shows the corresponding PharmAgent E2 advantage over each baseline. All 18 difference intervals are posi-
+tive.
+0 2 4
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO FF
+ExLLM FF
+SEISMO FF
+PharmAgent E2
+(a) Target AUC Sum
+0.0 0.5 1.0
+(b) AA-AUC
+0.0 0.5 1.0
+(c) PHV
+0 1 2 3
+Difference
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO FF
+ExLLM FF
+SEISMO FF
+(d) Target AUC Sum
+0.0 0.2 0.4 0.6
+Difference
+(e) AA-AUC
+0.0 0.2 0.4 0.6
+Difference
+(f) PHV
+Online performance
+PharmAgent E2 advantage
+Figure A9: Online performance and comparative gains across ﬁve tasks and ﬁve runs. Panels (a–c) show
+ﬁve-run means with unadjusted 95% Student- t intervals. Panels (d–f) show PharmAgent E2 minus each
+baseline with unadjusted 95% independent-group intervals. Target AUC uses ﬁve-task sums, while AA-AUC
+and PHV use task means. Each interval uses ﬁve run-level aggregates per method. The zero line in (d–f)
+denotes equal aggregate performance. All six baseline strategies are retained. FF denotes feasibility-ﬁrst and
+FP ﬁxed-penalty search. SEISMO retains its short-run protocol and terminal-score carry-forward.
+24
+
+===== PAGE 25 =====
+Preprint
+D.2 O PTIMIZER AND LANGUAGE -M ODEL ADAPTATIONS
+Non-LLM adaptations. Graph-GA uses FF and FP , and REINVENT4 uses FP . All seven constraints
+enter rewards from the ﬁrst evaluation. FP ﬁxes penalty weight w within each run and uses reward
+σ(4(f (x)− w ∑
+i vi(x)− 0.5)). Graph-GA ’s FF reward is 0.5 + 0 .5f (x) if all seven constraints pass, and
+0.5 exp(− ∑
+i vi(x)) otherwise. Metrics use raw target and property records, separately from optimizer re-
+wards.
+For each optimizer, w∈{ 0.1, 1, 10} is selected by mean AA-AUC over all ﬁve tasks and two separate devel-
+opment runs (indices 100/101, 500 calls each). Ties within 10−12 use PHV then smaller weight. Graph-GA
+selects 10 and REINVENT4 selects 1. All development outcomes are retained and excluded from formal
+means. Graph-GA uses population 120, offspring 70, mutation rate 0.067, and ZINC initialization. REIN-
+VENT4 uses its original prior, batch size 64, σ = 128 , learning rate 10−4, and an identical Murcko-scaffold
+diversity ﬁlter. All 75 non-LLM formal cells reach 1,000 unique evaluations. Invalid proposals and cache hits
+consume no new target calls. The 60 development runs consume 30,000 additional target evaluations. The
+75 formal runs consume 75,000. These controls use no LLM calls, while target and ADMET measurements
+run on the shared server.
+Table A2: Independent development runs for selecting ﬁxed-penalty weights. Each row averages ﬁve tasks
+and two runs. Formal outcomes do not enter selection.
+Optimizer Weight AA-AUC PHV Selected
+Graph-GA 0.1 0.206613 0.349602 No
+Graph-GA 1 0.209172 0.294164 No
+Graph-GA 10 0.209456 0.290444 Y es
+REINVENT4 0.1 0.257339 0.489099 No
+REINVENT4 1 0.286928 0.542494 Y es
+REINVENT4 10 0.262841 0.506246 No
+LLM feasibility-ﬁrst adaptations. MOLLEO, ExLLM, and SEISMO retain MiniMax-M3, their task de-
+scriptions, and response formats. Prompts add the common constraint objective and relevant parents’ or
+historical molecules’ property values, thresholds, normalized violations, and feasibility. These adaptations
+use no PharmAgent trajectories, Chemical-CER, adaptive multipliers, or curriculum. For MOLLEO and
+ExLLM population selection, feasible candidates precede infeasible candidates. Feasible candidates are or-
+dered by decreasing raw target score and infeasible candidates by increasing total normalized positive viola-
+tion. Canonical SMILES breaks ties. MOLLEO retains roulette parent sampling using a positive feasibility
+reward and uses this lexicographic ordering for survivors. Its population size is 120, offspring count 70, and
+mutation rate 0.067. ExLLM retains uniform parent sampling, a population of 50, two proposals per call,
+and experience injection probability 0.5. Its high/low evidence groups use the same feasibility-ﬁrst order.
+Crossover and mutation probabilities are 0.8 and 0.2. SEISMO receives the same feasibility-ﬁrst priority
+through its conversational objective and measured constraint feedback, retaining its original proposal and
+decision process. The hosted model uses temperature 0.7 and at most 2,048 completion tokens per request.
+Run indices label repeated runs rather than deterministic hosted-model seeds. Functional pilots are excluded
+from all reported means.
+D.3 B UDGET AND MEASUREMENT ACCOUNTING
+SEISMO uses 51 generation transitions, the last an unscored summary, and at most 50 target-evaluation
+events. Repeated target evaluations count as events, while property predictions are cached by canonical
+molecule. After termination, the ﬁnal Top-10 and historical best feasible scores are carried forward to the
+25
+
+===== PAGE 26 =====
+Preprint
+common 1,000-call horizon without further evaluations or molecules. Table A3 reports unique evaluation
+counts and evaluation events.
+Table A3: Target-evaluation counts across 25 task/run cells per strategy. Ranges are per cell. FF denotes
+feasibility-ﬁrst and FP ﬁxed-penalty search. Repeated SEISMO evaluations add events without adding unique
+molecules. All AUCs use the same 1,000-call horizon.
+Method Unique evaluations Evaluation events Total unique
+Graph-GA (FF) 1,000 1,000 25,000
+Graph-GA (FP) 1,000 1,000 25,000
+REINVENT4 (FP) 1,000 1,000 25,000
+MOLLEO (FF) 1,000 1,000 25,000
+ExLLM (FF) 1,000 1,000 25,000
+SEISMO (FF) 6–47 37–50 955
+PHARM AGENT (E2) 1,000 1,000 25,000
+D.4 T ASK -L EVEL MARGINS AGAINST EVERY ONLINE STRATEGY
+Figure A10(a) shows positive target-AUC differences in all 30 method–task comparisons. The smallest is
+0.0073 against SEISMO on DRD2. Figure A10(b) shows 27 positive AA-AUC differences. The exceptions
+are MOLLEO and ExLLM on Sitagliptin and SEISMO on Albuterol. Figure A10(c) shows 29 positive PHV
+differences, with a 0.0004 reversal against MOLLEO on Albuterol. Each cell subtracts two ﬁve-run task
+means. The counts summarize these task-level mean comparisons. Figures A2–A4 provide all runs and score
+intervals.
+26
+
+===== PAGE 27 =====
+Preprint
+GSK3β JNK3 DRD2
+Sitagliptin
+MPO
+Albuterol
+similarity
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO FF
+ExLLM FF
+SEISMO FF
+(a)  Target AUC
++0.4447 +0.6507 +0.8281 +0.1645 +0.5382
++0.3977 +0.6458 +0.7791 +0.1516 +0.5385
++0.2991 +0.5874 +0.2423 +0.1743 +0.5569
++0.3775 +0.5979 +0.5059 +0.0828 +0.0830
++0.2712 +0.5782 +0.3997 +0.0490 +0.1224
++0.1303 +0.4503 +0.0073 +0.1630 +0.0109
+GSK3β JNK3 DRD2
+Sitagliptin
+MPO
+Albuterol
+similarity
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO FF
+ExLLM FF
+SEISMO FF
+(b)  AA-AUC
++0.3840 +0.5930 +0.7192 +0.0782 +0.4958
++0.3649 +0.5916 +0.6899 +0.0468 +0.4895
++0.2341 +0.5027 +0.7747 +0.0810 +0.5162
++0.3247 +0.5562 +0.6143 -0.0264 +0.0663
++0.2475 +0.5150 +0.3916 -0.0193 +0.1023
++0.1202 +0.5761 +0.8769 +0.0764 -0.0305
+GSK3β JNK3 DRD2
+Sitagliptin
+MPO
+Albuterol
+similarity
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO FF
+ExLLM FF
+SEISMO FF
+(c)  PHV
++0.4272 +0.6556 +0.3764 +0.1287 +0.4454
++0.4024 +0.6404 +0.2597 +0.0820 +0.4243
++0.2136 +0.4008 +0.1431 +0.1165 +0.4389
++0.3206 +0.4848 +0.0806 +0.0231 -0.0004
++0.2506 +0.5286 +0.0826 +0.0044 +0.0005
++0.2842 +0.5562 +0.1583 +0.2192 +0.0084
+−1.00 −0.10 −0.01 0.00 0.01 0.10 1.00
+PharmAgent E2 − baseline (signed fourth-root color scale)
+Figure A10: PharmAgent E2 minus every online baseline on each task. Panels (a–c) show target AUC, AA-
+AUC, and PHV . Each cell is a difference between ﬁve-run means, calculated before rounding. Positive values
+favor PharmAgent. A shared signed color scale uses purple for positive differences and orange for negative
+differences. Cell ﬁlls and the color bar follow the same signed fourth-root scale, which makes small signed
+differences visible. Printed values are rounded to four decimals. All 90 comparisons are retained. Target
+AUC is reported per task. Colors encode mean differences, with uncertainty reported in Figures A2–A4. FF
+denotes feasibility-ﬁrst and FP ﬁxed-penalty search.
+27
+
+===== PAGE 28 =====
+Preprint
+D.5 C HANGES FROM ORIGINAL TO ONLINE SEARCH
+Figure A11 complements the direct comparison by showing how each framework’s outcomes change after
+online constraint handling is introduced. Each baseline adaptation is compared with that framework’s original
+run conﬁguration. PharmAgent E2 is compared with E1. The original trajectories receive the same post-hoc
+property evaluation, enabling comparison of AA-AUC and PHV on a common scale.
+The three panels separate changes in target progress (Figure A11(a)), feasible-solution progress (Fig-
+ure A11(b)), and two-objective coverage (Figure A11(c)). ExLLM’s AA-AUC increases from 0.3121
+to 0.4602, with a difference interval of [0.1033, 0.1929], while its target-AUC sum decreases by 0.5218.
+PharmAgent’s AA-AUC increases from 0.5328 to 0.7076. Its independent-group difference interval is
+[0.0195, 0.3303], consistent with the run-index-matched comparison in the main paper. Its target-AUC-sum
+change of−0.2272 has interval [−0.7880, 0.3336].
+The Graph-GA adaptations lower the three aggregate means under the tested conﬁgurations. REINVENT4
+and SEISMO increase all three means, although their difference intervals cross zero. MOLLEO’s changes in
+AA-AUC and PHV also have intervals spanning zero. These framework-speciﬁc responses show that access
+to constraint measurements and effective use of those measurements are distinct experimental questions. The
+direct E2 comparison in Table 3 evaluates the resulting online search methods.
+−1.0 −0.5 0.0 0.5
+Graph-GA FF
+Graph-GA FP
+REINVENT4 FP
+MOLLEO FF
+ExLLM FF
+SEISMO FF
+PharmAgent E2
+(a) Δ Target AUC Sum
+−0.2 0.0 0.2
+(b) Δ AA-AUC
+−0.2 0.0 0.2
+(c) Δ PHV
+Figure A11: Online minus original aggregate performance within each framework. Panels (a–c) show
+changes in target-AUC sum, AA-AUC, and PHV . Diamonds denote mean differences and bars unadjusted
+95% independent-group intervals over ﬁve run-level task aggregates per conﬁguration. Positive changes fa-
+vor online search. Graph-GA ’s original reference is shared by its two adaptations. PharmAgent compares
+E2 with E1, using the independent-group sensitivity analysis. Each contrast compares complete original and
+online conﬁgurations. FF denotes feasibility-ﬁrst and FP ﬁxed-penalty search. SEISMO retains its short-run
+protocol in both conditions.
+All ﬁve tasks and all ﬁve runs are retained for every contrast. Target-AUC changes use task sums, whereas
+AA-AUC and PHV use task means. The uncertainty calculation follows Appendix B and does not assume
+shared hosted-model random draws. The 21 displayed intervals are individual descriptive intervals without
+multiplicity adjustment. Both Graph-GA contrasts share an original reference, so they are not independent
+replications.
+28
+
+===== PAGE 29 =====
+Preprint
+E ADMET-PMO P ROTOCOL DETAILS
+Table A4: ADMET constraints in the ADMET-PMO benchmark. The same seven constraints are used for all
+ﬁve tasks evaluated in this paper.
+Constraint Property Type Threshold Tool
+Lipinski MW Molecular weight ≤ 500 Da RDKit
+Lipinski logP Lipophilicity ≤ 5.0 RDKit
+QED Drug-likeness ≥ 0.3 RDKit
+SA Score Synth. accessibility ≤ 6.0 RDKit
+CYP2D6 inhibition Metabolic safety ≤ 0.5 ADMET-AI
+hERG blocking Cardiac safety ≤ 0.5 probability ADMET-AI
+Caco-2 Permeability ≥ −5.15 ADMET-AI
+QED and SA follow Bickerton et al. (2012) and Ertl & Schuffenhauer (2009). Learned endpoints use
+ADMET-AI (Swanson et al., 2024).
+E.1 C ONSISTENT EVALUATION PROTOCOL
+Online ADMET-PMO measurements and post-hoc baseline annotations follow the same evaluation procedure.
+Each molecule is represented by its RDKit-canonical SMILES ( Weininger, 1988; Landrum et al. , 2024) and
+evaluated individually. Predictions are stored in a cache of up to 10,000 molecules, with the least recently
+used entries removed when capacity is reached. This procedure gives consistent predictions across input batch
+sizes, molecule orderings, and prior cache contents. Cached results are copied before reuse. The evaluation
+protocol ﬁxes backend versions, endpoint mappings, constraints, normalization scales, and failure handling.
+Online measurements and post-hoc baseline annotations are checked for consistency with this protocol before
+results are aggregated.
+E.2 P ROPERTY -S PECIFIC NORMALIZATION SCALES
+Constraint violations are normalized by property-speciﬁc scales so that the sigmoid transition zone is compa-
+rable across properties with vastly different natural ranges:
+Table A5: Property-speciﬁc normalization scales used in the ADMET score and Lagrangian penalty terms.
+Property Scale ri Steepness si Justiﬁcation
+MW 150 Da 5.0 Std. dev. in drug-like space
+logP 2.0 5.0 Std. dev. in drug-like space
+QED 0.2 5.0 Range [0, 1], std≈ 0.2
+SA Score 2.0 5.0 Range [1, 10], std≈ 2
+CYP2D6 inh. 0.3 5.0 Probability scale [0, 1]
+hERG blocking 0.3 5.0 Probability scale [0, 1]
+Caco-2 perm. 1.0 5.0 Log permeability units
+E.3 C ONTINUOUS ADMET S CORE
+For full-constraint evaluation, the ADMET Analyst computes a continuous score by applying a sigmoid to
+each normalized distance from its threshold:
+ADMETscore(x) = 1∑
+i wi
+K∑
+i=1
+wi· σ
+( si· (˜ti− ˜gi(x))
+ri
+)
+, (A1)
+29
+
+===== PAGE 30 =====
+Preprint
+where σ(·) is the logistic sigmoid, si is the steepness, ri is a property-speciﬁc normalization scale (Table A5),
+and wi are conﬁgurable per-constraint weights. The direction-normalized margin treats upper- and lower-
+bound requirements consistently. This continuous score supports experience annotation and Pareto evaluation.
+Hard feasibility requires all seven inequalities, and candidate acceptance uses ( 3). The proposal model does
+not use gradients of the sigmoid score. Prompt exposure follows the active constraints. Phase 1 and Standard
+PMO use target-only Generator and Reviewer templates.
+E.4 F ORMAL METRIC DEFINITIONS
+Let{(xj, sj)}N
+j=1 denote scored molecules, sorted by sj descending. Let pass (x) = ⊮[∀i : ˜gi(x)≤ ˜ti].
+Pass rate among the top k molecules (PR@k). PR@k = 1
+k
+∑k
+j=1 pass(xj).
+AA-AUC. Let s∗
+pass(n) be the best score among passing molecules after n oracle calls. AA-AUC =
+1
+B
+∑B
+n=1 s∗
+pass(n).
+PHV .Using reference point r = (0 , 0): PHV = vol
+( ∪
+j∈P [r, (sj, aj)]
+)
+, whereP is the Pareto front of
+(sj, aj) pairs and aj is the ADMET score of molecule j.
+F P ROMPT TEMPLATES
+F.1 G ENERATOR PROMPTS
+The prompts request structured JavaScript Object Notation (JSON) responses.
+You are PharmAgent-Generator, an expert medicinal chemist
+AI. You optimize molecules by proposing specific structural
+modifications with detailed pharmaceutical reasoning.
+Rules: 1. Output ONLY valid JSON. 2. Every proposed SMILES
+must be chemically valid. 3. Each modification must have
+explicit medicinal chemistry rationale. 4. Consider only
+the explicitly active declared constraints. 5. Output a
+JSON object with key “candidates” containing an array.
+Target-only and constrained branches. The quoted system prompt is used in constrained phases. Stan-
+dard PMO and curriculum Phase 1 instead use an explicit target-only system prompt that instructs the Gen-
+erator to optimize only the stated target and omits all ADMET ﬁelds. Both user-prompt branches receive the
+current SMILES and target score, ChEMBL matched-pair context from MedChem-RAG, previous Reviewer
+feedback, structured round-memory records, and the top-5 Chemical-CER experiences. Only the constrained
+branch adds the current active-constraint ADMET summary and two explicitly separated blocks containing
+current measurements (value, threshold, direction, signed margin, and normalized violation) and historical
+multiplier pressure λi. The multiplier block records optimization history, while current measurements deter-
+mine pass/fail status. Pan-assay interference compounds (PAINS), Brenk, and V eber alerts appear in neither
+Generator branch and are never optimization guidance. If evaluated, they are post-hoc analyses outside the
+formal online state. Every Generator request asks for at most ﬁve candidates.
+Additional proposal instructions. When a restart is scheduled, the base prompt receives one proposal-
+strategy sufﬁx (scaffold-hop, ring/linker re-architecture, or bioisosteric replacement). The sufﬁx explicitly
+preserves the incumbent, supplied constraints, RAG evidence, and run history. If and only if the primary re-
+sponse yields no valid molecules absent from the evaluated set, a second and ﬁnal Generator request appends
+standardized rejection or duplication reasons and candidate indices and up to 20 previously evaluated canoni-
+cal SMILES to avoid ordered by Morgan-Tanimoto similarity to the incumbent. The second request preserves
+30
+
+===== PAGE 31 =====
+Preprint
+the base objective, active constraints, V eriﬁer, and ﬁve-candidate cap. Cross-round and cross-agent reuse is
+restricted to structured ﬁelds comprising canonical SMILES, ﬁnite scores and deltas, active-constraint facts,
+validated modiﬁcation types, and normalized Reviewer priorities. Raw model prose is not forwarded as re-
+play context. RAG exposes canonical structure pairs and ﬁnite target-score deltas. CER exposes canonical
+pairs and ﬁnite numerical deltas.
+Phase-3 context-only repair anchors. After ﬁve consecutive non-improving rounds within the phase in
+Phase 3, each Generator request already permitted in that activated round receives the current archive of at
+most two infeasible Pareto anchors. This applies to the primary request and, when no valid novel candi-
+date is produced, the single repair request. The same archive is supplied to the Reviewer when the round
+produces scored candidates. The highest-target and lowest-total-normalized-violation representatives are se-
+lected among observations that strictly outperform the best feasible target score. Each anchor is accompanied
+by its SMILES and per-constraint value, threshold, direction, signed margin, and normalized violation. The
+Generator is instructed to edit only the incumbent. The V eriﬁer does not enforce structural similarity between
+the incumbent and a proposal. The Reviewer receives the accepted state (the improving candidate or retained
+incumbent) as the incumbent for the next round. Anchors provide measured examples for proposal revision.
+Acceptance, multiplier updates, and Chemical-CER recording follow their existing rules. CER stores the
+transition to the best evaluated candidate of the round rather than to the accepted iterate. Thresholds, metrics,
+the V eriﬁer, transition rules, candidate and request caps, and the oracle budget remain ﬁxed. Through their in-
+ﬂuence on proposals, anchors can affect accepted states, multiplier updates, replay records, and the sequence
+of model requests, network attempts, and oracle evaluations. They add bounded input tokens to those existing
+prompts.
+F.2 R EVIEWER PROMPTS
+You are PharmAgent-Reviewer, a senior medicinal chemistry
+advisor. You analyze optimization results and provide
+strategic guidance.
+Rules: 1. Output ONLY valid JSON. 2. Be specific in
+suggestions: name exact structural modifications. 3.
+Consider both activity and ADMET properties. 4. Recommend
+termination if optimization has stagnated or goals are met.
+The quoted prompt is used only in constrained phases. The target-only branch omits ADMET ﬁelds and
+directs the Reviewer not to use secondary properties. For constrained rounds, every displayed candidate is
+paired with that candidate’s own per-constraint value, threshold, direction, signed margin, and normalized
+violation. The incumbent’s values are never substituted for a candidate’s values, and historical λi pressure
+remains a separate block. When anchors are active, the Reviewer receives the same selected anchors as the
+Generator and uses the accepted state as the incumbent for the next round. In formal runs with the 1,000-call
+budget, early termination is disabled, so the Reviewer is called at most once after a round scores at least one
+novel candidate and its termination recommendation cannot truncate the oracle budget.
+G C HEMICAL -CER A LGORITHM DETAILS
+Scores recorded with each transition. For a record collected in round τ , let Jτ denote that round’s scalar
+evaluation rule, with all its parameters ﬁxed. The record stores
+∆target = f (xtgt)− f (xsrc), ∆combined = Jτ (xtgt)− Jτ (xsrc).
+For the constrained full system, Jτ =LCτ (·, λ(τ ), ρ(τ )). The target-only objective gives Jτ = f . The stored
+ADMET change describes the annotation used at collection time. An entry remains an evaluated transition
+even when the candidate was rejected. Eligibility for later retrieval is a separate operation.
+31
+
+===== PAGE 32 =====
+Preprint
+Eligibility before similarity. The retrieval interface distinguishes positive target-score change from posi-
+tive collection-objective change. Let ht(e) be the retrieval eligibility rule, determined by the improvement
+criterion and the permitted origin phases. Then Deligible
+t ={e∈D : ht(e) = 1}. Replay uses target-only
+information in Phases 1–2 and combined-objective information for all seven constraints in Phase 3. Phase 1
+exposes records originating before round 20 and Phase 2 before round 60. Phase 3 has no origin-round cutoff.
+Retrieval uses completed records from earlier tasks and rounds of the current task. It excludes attempts from
+the ongoing round and incomplete records from failed rounds. Historical task text and modiﬁcation prose
+are not replayed. The predicate is applied to recorded outcomes before source-structure distances are ranked.
+Historical scalar changes retain their collection-time objective and multiplier values during retrieval.
+Algorithm A1 Chemical-CER: structure-aware experience retrieval
+Require: Experience databaseD ={e1, . . . , eN}, query molecule x, integer k, eligibility predicate ht
+Ensure: Retrieved experiencesEk
+1: fpx← MORGAN FP(x, radius = 2, bits = 2048)
+2: dj←∥ fpx− fpsrc(ej)∥2 for all j = 1, . . . , N {V ectorized}
+3:S←{ ej∈D : ht(ej) = 1} {Apply conﬁgured eligibility}
+4:Ek← ﬁrst min(k,|S|) elements ofS after stable sorting by ascending dj
+5: Format canonical structure pairs and ﬁnite numeric deltas for proposal conditioning
+6: returnEk
+The database stores ﬁngerprints as a ﬂat NumPy array and computes all distances in a single vectorized
+operation, avoiding the need for an external index (such as FAISS) at the typical scale of <1,000 entries.
+The database persists across tasks through an optional serialization mechanism. When the number of stored
+experiences exceeds the conﬁgured maximum (1,000 by default), the oldest entries are evicted in ﬁrst-in,
+ﬁrst-out (FIFO) order.
+H C OMPUTATIONAL RESOURCES AND REPRODUCIBILITY
+Model and scientiﬁc evaluation. Generator and Reviewer access the provider-hosted MiniMax-M3 model
+through MiniMax’s OpenAI-compatible application programming interface (API) in China ( MiniMax, 2026).
+Provider-side model versioning and sampling are addressed in Appendix M. Run indices 0–4 identify repe-
+titions and seed local random operations where applicable. ADMET measurements use ADMET-AI v1.4.0
+with RDKit ( Swanson et al. , 2024; Landrum et al. , 2024). Each uncached canonical molecule is evaluated
+individually and reused through the property cache.
+Requests, rounds, and recovery. The formal target budget is 1,000 unique calls per task/run, including the
+26-member seed pool. Each primary Generator request proposes at most ﬁve candidates. A response with
+no valid novel molecules can trigger one ﬁnal repair request with the same cap. A scored round invokes at
+most one Reviewer. Both E1 and E2 use a cap of 60,100 Hypertext Transfer Protocol (HTTP) attempts per
+task/run. Observed round counts range from 458 to 3,592 for E1 and 538 to 6,616 for E2. A round may
+contain no novel molecule, so rounds, HTTP attempts, and unique oracle evaluations are different quantities.
+All E1/E2 cells reach 1,000 unique target calls. No performance-based early stopping is used. The reported
+experiments use the request and round limits speciﬁed here.
+Bounded novelty repair and proposal-context restarts preserve the incumbent and target budget. After ﬁve
+consecutive non-improving rounds within the phase in Phase 3, up to two previously scored near-feasible
+anchors may enter existing prompts. They supply context without directly replacing the incumbent or chang-
+ing the acceptance rule. The archive is evaluated separately from Chemical-CER, whose record remains the
+incoming-incumbent-to-round-best transition. Stage changes occur only at rounds 20 and 60, and the penalty
+reset retains multipliers. Appendix F describes the structured ﬁelds passed through recovery and feedback.
+32
+
+===== PAGE 33 =====
+Preprint
+Recorded cost. Table A6 reports original provider usage across ﬁve tasks and ﬁve runs per arm. Token to-
+tals measure recorded model usage. E2 uses 2.408 times E1’s recorded total tokens. Post-hoc E1 annotations
+reuse the 25,000 molecules from its existing generation runs.
+Table A6: Recorded E1/E2 compute over 25 runs per arm. Oracle calls count unique target evaluations.
+HTTP attempts include retries. Round counts include rounds without new molecules.
+Quantity E1 E2
+Unique target evaluations 25,000 25,000
+Recorded optimization rounds 38,013 49,854
+Successful HTTP calls 83,653 108,055
+HTTP attempts 83,751 108,168
+Input tokens 119,050,374 301,475,520
+Output tokens 55,388,732 118,552,476
+Total tokens 174,439,106 420,027,996
+The non-LLM online controls use 75,000 formal and 30,000 development target evaluations, with no LLM
+calls. MOLLEO FF and ExLLM FF contribute 25,000 unique formal target evaluations each. SEISMO FF
+evaluation counts appear in Table A3. Oracle evaluation totals and LLM token/time costs are accounted for
+separately. Graph-GA and REINVENT4 use the same server-side target/ADMET measurement environment.
+REINVENT4 optimization can execute locally through that measurement service. Both optimizers therefore
+obtain measurements from the same evaluation service. Missing baseline time/token measurements are left
+unreported. Appendix M discusses computational-cost comparability.
+Finite controller observations. All 25 E2 runs terminate with accepted molecules passing the seven ﬁnal
+constraints. During Phase 3, the mean run-level fraction of feasible accepted rounds is 95.62%. This includes
+repeated incumbents during rounds without new molecules. It differs from the 29.13% feasible fraction
+among evaluated molecules. The largest observed multiplier is 1,815.5313. Both E1 and E2 ﬁnd an initially
+feasible seed at call 1. AA-AUC and best-feasible-score curves therefore track improvement beyond initial
+feasibility. These curves report ﬁnite-budget performance. Trajectory analyses include every task and run,
+distinguishing violations of active constraints from violations under the full set of seven constraints.
+I H YPERPARAMETER CONFIGURATION
+Table A7 records the default controller, retrieval, scheduling, and recovery settings.
+Table A7: Hyperparameters for Lagrangian, Chemical-CER, and Curriculum modules.
+State / operation Parameter Default
+Constraint state
+Initial penalty ρ0 1.0
+Growth factor γ 1.5
+Maximum penalty ρmax 100
+Experience state
+Retrieval count k 5
+Archive capacity 1000
+Fingerprint radius / bits 2 / 2048
+Schedule state Phase 1 end R1 20
+Phase 2 end R2 60
+Context recovery Stagnation trigger within each phase 5
+33
+
+===== PAGE 34 =====
+Preprint
+The initial ρ0 sets the quadratic penalty when constraints activate or the active set expands. The growth
+factor γ increases this penalty after a violated accepted state, subject to the cap ρmax. Feasible accepted
+states leave it unchanged. The retrieval count limits the number of examples exposed to the Generator, and
+archive capacity limits retained experience. The curriculum changes only at its ﬁxed round boundaries. The
+stagnation trigger controls proposal context and does not activate constraints.
+J B ROADER IMPACT
+PHARM AGENT is a computational tool for molecular optimization and does not directly produce physical
+molecules. Its outputs are SMILES strings that must be validated by medicinal chemists and tested in wet-lab
+assays before entering any drug development pipeline. By incorporating ADMET constraints, the framework
+is designed to steer optimization toward molecules with better safety proﬁles, which could reduce the number
+of toxic candidates that proceed to animal testing.
+A potential risk of any molecular generation system is the production of molecules with harmful properties
+(toxins, controlled substances, environmental pollutants). The implemented screen penalizes predicted hERG
+inhibition. It does not include genotoxicity endpoints or establish safety against these broader risks. Nonethe-
+less, the system is not a substitute for regulatory toxicology assessment, and users should apply additional
+safety checks before any experimental synthesis.
+The ADMET-PMO benchmark itself poses minimal risk, as it consists of computational oracle functions
+applied to virtual molecules. Releasing the benchmark and evaluation code promotes transparency and repro-
+ducibility in the ﬁeld.
+K C OMPARISON OF EVALUATED BASELINES
+Table A8 compares the original ﬁve baseline implementations along six axes. The online adaptations in Ta-
+ble 3 enable online measurements and constraint-aware selection or feedback. Their protocol is speciﬁed in
+Appendix D. Its original-method roster matches Tables 2 and A10. The comparison describes the conﬁgura-
+tions evaluated in this study.
+Table A8: Features enabled in the evaluated ﬁve-baseline protocol.  indicates enabled features and  indi-
+cates features not enabled. The symbol H denotes within-task memo or trajectory reuse without ﬁngerprint-
+based experience retrieval. Online ADMET columns concern the optimization loop. All ﬁve baselines sepa-
+rately receive the same post-hoc ADMET annotation. † denotes our independent MiniMax-M3 reimplemen-
+tations.
+System Multi-agent Online ADMET Online ADMET Memory Cross-task Five-task
+evaluation constraints retrieval transfer PMO
+Graph-GA      
+REINVENT4      
+MOLLEO-MiniMax-M3†      
+ExLLM-MiniMax-M3†    H  
+SEISMO-MiniMax-M3    H  
+PHARM AGENT      
+Graph-GA and REINVENT4 optimize the target-only objective in our baseline runs. REINVENT4’s broader
+conﬁgurable scoring capabilities are not enabled as online ADMET constraints in this experiment. MOLLEO-
+MiniMax-M3† and ExLLM-MiniMax-M3† are independent reimplementations. SEISMO-MiniMax-M3 pre-
+serves the released prompts and original short-run PMO protocol with a MiniMax-M3 backend ( Krüger et al.,
+2026, Section 5.1 and Appendix A). The protocol permits at most 50 oracle evaluations. Our runs produce
+34
+
+===== PAGE 35 =====
+Preprint
+27–48 unique target evaluations after molecular canonicalization. After optimization ends, the ﬁnal Top-10
+score is held constant through the common 1,000-call AUC horizon, following the original paper’s reporting
+convention. This carry-forward is used only for metric integration and creates no additional oracle evalua-
+tions. Post-hoc annotation evaluates the original generated trajectories through the common property protocol
+in Table A10. PharmAgent uses property measurements during search to guide subsequent decisions. Expe-
+rience retrieval and cross-task transfer refer speciﬁcally to retrieval and reuse of stored optimization attempts.
+The main results quantify the performance advantage.
+Table A9: State and memory mechanisms in the ﬁve baseline frameworks and Chemical-CER. Framework
+names omit the LLM backend. Implementation details are speciﬁed in the experimental setup. Within-
+task state includes populations, learned policy parameters, and explicit history. Structure-aware denotes
+ﬁngerprint-based retrieval of optimization experiences. Cross-task denotes reuse of an optimization experi-
+ence archive in the evaluated conﬁgurations.
+Method Within-task state Structure-aware Cross-task
+Graph-GA Evolutionary population  
+REINVENT4 Learned policy parameters  
+MOLLEO Population / parent scores  
+ExLLM Experience memo  
+SEISMO Interaction trajectory  
+Chemical-CER (ours) Retrieved transitions  
+Complete aggregate results. Table A10 reports the original-protocol property comparison. Table A11
+gives ﬁnal target scores and uncertainty for both original and online conﬁgurations.
+Table A10: Original baselines with post-hoc property annotation, compared with online PharmAgent E2.
+Results average ﬁve tasks and ﬁve runs. The 5-Task Sum adds task-level AUC means. All metrics are higher-
+is-better. Baselines receive post-hoc ADMET annotation. P HARM AGENT uses online constraints. Backend
+and evaluation protocols follow Section 4.1. Best/second-best means are bold/underlined.
+Target Score Property-Aware Quality
+Method Top-1 AUC Top-10 5-Task Sum AA-AUC PHV
+Graph-GA 0.6029 0.3998 1.9988 0.3367 0.5686
+REINVENT4 0.5864 0.3582 1.7911 0.2723 0.5238
+MOLLEO† 0.7797 0.5713 2.8565 0.4145 0.7016
+ExLLM† 0.7364 0.5590 2.7950 0.3121 0.6065
+SEISMO 0.6053 0.5613 2.8067 0.2994 0.5204
+PHARM AGENT 0.8514 0.7387 3.6936 0.7076 0.8248
+35
+
+===== PAGE 36 =====
+Preprint
+Table A11: Final target-score summaries for all conﬁgurations across ﬁve ﬁxed tasks and ﬁve runs. Means ±
+unadjusted 95% interval half-widths. The lower block contains online adaptations. FF denotes feasibility-ﬁrst
+and FP ﬁxed-penalty search. Best/second-best means are bold/underlined across all rows. *SEISMO follows
+its original short-run protocol.
+Method Top-1 Top-10
+PharmAgent E1 0.8641± 0.0645 0.8606± 0.0634
+PharmAgent E2 0.8514± 0.0561 0 .8305± 0.0751
+Graph-GA 0.6029± 0.0194 0 .5498± 0.0157
+REINVENT4 0.5864± 0.0469 0 .4613± 0.0264
+MOLLEO† 0.7797± 0.0401 0 .7484± 0.0406
+ExLLM† 0.7364± 0.0565 0 .7184± 0.0561
+SEISMO* 0.6053± 0.0512 0 .5733± 0.0432
+Graph-GA (FF) 0.4375± 0.0141 0 .3219± 0.0257
+Graph-GA (FP) 0.4837± 0.0852 0 .3575± 0.0981
+REINVENT4 (FP) 0.6221± 0.0901 0 .4663± 0.0197
+MOLLEO† (FF) 0.6788± 0.0517 0 .5864± 0.0290
+ExLLM† (FF) 0.6647± 0.0321 0 .6352± 0.0320
+SEISMO* (FF) 0.6405± 0.0338 0 .5978± 0.0261
+L S EED MOLECULE POOL
+For seed selection (Section 4), we use a pool of 26 diverse molecules covering simple aromatics, heterocycles,
+approved drugs, bicyclic scaffolds, aliphatic chains, and common drug motifs:
+c1ccccc1 c1ccncc1 c1ccoc1 c1ccsc1 c1cc[nH]c1
+C1CCNCC1 C1CCOCC1 C1CCSCC1
+CC(=O)Oc1ccccc1C(=O)O CC(C)Cc1ccc(cc1)C(C)C(=O)O
+CC(=O)Nc1ccc(O)cc1 CC(C)NCC(O)c1ccc(O)c(O)c1
+c1ccc2ncccc2c1 c1ccc2c(c1)[nH]c1ccccc12 c1ccc2c(c1)cc1ccccc1n2
+CCCCCCCC(=O)O CC(C)(C)C(=O)O C1CCC(CC1)O CC(C)(C)O
+O=C(O)c1ccccc1O c1ccc(cc1)O NC(=O)c1ccccc1
+c1ccc(cc1)S(=O)(=O)N CC(=O)c1ccccc1 C1COCCN1 C1CNCCN1
+At the start of each run, all 26 molecules are scored by the target oracle (at most 26 calls, <3% of the 1,000-
+call budget). The highest-scoring molecule initializes optimization, reducing dependence on a single arbitrary
+seed at low oracle cost.
+36
+
+===== PAGE 37 =====
+Preprint
+M L IMITATIONS AND REMAINING VALIDATION
+PHARM AGENT leads all ﬁve E2 aggregate metrics, with higher means in 30/30 target-AUC, 27/30 AA-AUC,
+and 29/30 PHV task-level comparisons (Figure A10). The few online exceptions concern Sitagliptin and
+Albuterol, including a PHV reversal of 0.0004. In E1, SEISMO leads DRD2 and Albuterol. E2’s target-AUC
+sum is 3.6936 versus E1’s 3.9208, and their target-AUC and PHV difference intervals cross zero.
+Evaluation covers ﬁve tasks and predicted properties. Experimental safety validation and cross-domain trans-
+fer remain open. All methods receive the same oracle allowance, with actual evaluations and computation
+varying by protocol. SEISMO retains short-run optimization and terminal-score carry-forward for AUC in-
+tegration. Online adaptations were designed after the original PharmAgent runs and ﬁxed before formal
+outcomes. Hosted-model versions and sampling are provider-controlled rather than ﬁxed by local run labels.
+We plan to extend evaluation to open-weight language models as computational resources permit.
+Proposition 1 assumes uniformly bounded multipliers, which is not established for the search and cannot be
+veriﬁed from ﬁnite runs. The analysis does not guarantee ﬁnite-budget feasibility, optimality, acceleration, or
+stationarity.
+Intervals are unadjusted. Molecular cases describe ﬁxed endpoints rather than isolated scheduling effects,
+and original-to-online contrasts compare complete conﬁgurations.
+37

@@ -1,0 +1,2508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DyRAMO 论文精读 | Reward hacking in multi-objective molecular design</title>
+<!-- MathJax for LaTeX formulas -->
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+/* ========== CSS Variables & Theme ========== */
+:root {
+  --primary: #1a56db;
+  --primary-light: #e8effc;
+  --primary-dark: #1e429f;
+  --accent: #0e9f6e;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --bg: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --text: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+  --radius: 8px;
+  --radius-md: 12px;
+  --sidebar-width: 260px;
+  --right-sidebar-width: 280px;
+  --topbar-height: 60px;
+  --progress-height: 3px;
+}
+
+[data-theme="dark"] {
+  --primary: #60a5fa;
+  --primary-light: #1e3a5f;
+  --primary-dark: #3b82f6;
+  --accent: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --bg: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --text: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --border: #334155;
+  --border-light: #1e293b;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.5);
+}
+
+/* ========== Reset & Base ========== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topbar-height) + var(--progress-height) + 20px); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.75;
+  font-size: 15px;
+  transition: background 0.3s, color 0.3s;
+}
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; height: auto; }
+
+/* ========== Reading Progress Bar ========== */
+#progress-bar {
+  position: fixed; top: 0; left: 0; height: var(--progress-height);
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  width: 0%; z-index: 10000; transition: width 0.1s;
+}
+
+/* ========== Top Bar ========== */
+.topbar {
+  position: fixed; top: var(--progress-height); left: 0; right: 0; height: var(--topbar-height);
+  background: var(--bg); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 20px; z-index: 999;
+  box-shadow: var(--shadow);
+}
+.topbar-title {
+  font-size: 15px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+}
+.topbar-title span { color: var(--primary); }
+.topbar-actions { display: flex; gap: 8px; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text-secondary); font-size: 13px;
+  cursor: pointer; transition: all 0.2s; font-family: inherit;
+}
+.btn:hover { background: var(--bg-tertiary); color: var(--text); border-color: var(--primary); }
+.btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+.btn-primary:hover { background: var(--primary-dark); color: white; }
+.btn-icon { padding: 6px 10px; font-size: 16px; }
+
+/* Search box */
+.search-box {
+  position: relative; display: flex; align-items: center;
+}
+.search-box input {
+  width: 0; padding: 6px 0; border: none; background: transparent;
+  color: var(--text); font-size: 13px; font-family: inherit;
+  transition: width 0.3s, padding 0.3s; outline: none;
+}
+.search-box.active input { width: 200px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); }
+.search-results {
+  position: absolute; top: 100%; right: 0; width: 360px; max-height: 400px;
+  overflow-y: auto; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg); z-index: 1000;
+  display: none;
+}
+.search-results.show { display: block; }
+.search-result-item {
+  padding: 10px 14px; border-bottom: 1px solid var(--border-light); cursor: pointer;
+  transition: background 0.15s;
+}
+.search-result-item:hover { background: var(--bg-secondary); }
+.search-result-item .sr-title { font-size: 13px; font-weight: 600; color: var(--primary); margin-bottom: 2px; }
+.search-result-item .sr-snippet { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.search-result-item .sr-snippet mark { background: #fef08a; color: var(--text); padding: 0 2px; border-radius: 2px; }
+[data-theme="dark"] .search-result-item .sr-snippet mark { background: #854d0e; color: #fef08a; }
+
+/* ========== Layout ========== */
+.layout {
+  display: flex; margin-top: calc(var(--topbar-height) + var(--progress-height));
+  min-height: calc(100vh - var(--topbar-height) - var(--progress-height));
+}
+
+/* Left Sidebar - TOC */
+.sidebar-left {
+  width: var(--sidebar-width); position: fixed; top: calc(var(--topbar-height) + var(--progress-height));
+  bottom: 0; left: 0; overflow-y: auto; background: var(--bg-secondary);
+  border-right: 1px solid var(--border); padding: 20px 0; z-index: 100;
+  transition: transform 0.3s;
+}
+.sidebar-left::-webkit-scrollbar { width: 4px; }
+.sidebar-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.toc-section { padding: 0 16px; margin-bottom: 8px; }
+.toc-section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-muted); letter-spacing: 0.5px; padding: 8px 12px;
+}
+.toc-item {
+  display: block; padding: 6px 12px; font-size: 13px; color: var(--text-secondary);
+  border-radius: 6px; cursor: pointer; transition: all 0.15s; line-height: 1.4;
+}
+.toc-item:hover { background: var(--bg-tertiary); color: var(--text); text-decoration: none; }
+.toc-item.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.toc-item.toc-l2 { padding-left: 24px; font-size: 12px; }
+.toc-item.toc-l3 { padding-left: 36px; font-size: 12px; color: var(--text-muted); }
+
+/* Main Content */
+.main-content {
+  flex: 1; margin-left: var(--sidebar-width); margin-right: var(--right-sidebar-width);
+  padding: 32px 40px 80px; max-width: 900px;
+}
+
+/* Right Sidebar */
+.sidebar-right {
+  width: var(--right-sidebar-width); position: fixed; top: calc(var(--topbar-height) + var(--progress-height));
+  bottom: 0; right: 0; overflow-y: auto; background: var(--bg-secondary);
+  border-left: 1px solid var(--border); padding: 20px 16px; z-index: 100;
+}
+.sidebar-right::-webkit-scrollbar { width: 4px; }
+.sidebar-right::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.right-widget { margin-bottom: 24px; }
+.right-widget-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 10px;
+  padding-bottom: 6px; border-bottom: 2px solid var(--primary);
+}
+.key-conclusion-card {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 12px; margin-bottom: 8px; font-size: 12px; line-height: 1.5;
+  color: var(--text-secondary); position: relative; cursor: pointer; transition: all 0.2s;
+}
+.key-conclusion-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md); }
+.key-conclusion-card .copy-btn {
+  position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity 0.2s;
+  background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;
+}
+.key-conclusion-card:hover .copy-btn { opacity: 1; }
+.term-item {
+  padding: 6px 0; border-bottom: 1px solid var(--border-light); font-size: 12px;
+}
+.term-item .term-en { font-weight: 600; color: var(--primary); }
+.term-item .term-zh { color: var(--text-secondary); margin-top: 2px; }
+.question-item {
+  padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: 12px;
+  color: var(--text-secondary); line-height: 1.5;
+}
+.question-item::before { content: "❓ "; color: var(--warning); }
+
+/* ========== Content Typography ========== */
+.content-section { margin-bottom: 48px; }
+.content-section h2 {
+  font-size: 24px; font-weight: 700; color: var(--text); margin-bottom: 20px;
+  padding-bottom: 12px; border-bottom: 3px solid var(--primary);
+  display: flex; align-items: center; gap: 10px;
+}
+.content-section h2 .section-num {
+  background: var(--primary); color: white; font-size: 14px;
+  padding: 2px 10px; border-radius: 4px; font-weight: 600;
+}
+.content-section h3 {
+  font-size: 19px; font-weight: 600; color: var(--text); margin: 28px 0 14px;
+  padding-left: 12px; border-left: 4px solid var(--primary);
+}
+.content-section h4 {
+  font-size: 16px; font-weight: 600; color: var(--text); margin: 20px 0 10px;
+}
+.content-section p { margin-bottom: 14px; color: var(--text-secondary); }
+.content-section ul, .content-section ol { margin: 12px 0 16px 24px; color: var(--text-secondary); }
+.content-section li { margin-bottom: 6px; }
+.content-section strong { color: var(--text); font-weight: 600; }
+
+/* ========== Cards & Callouts ========== */
+.card {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 20px; margin: 16px 0;
+}
+.card-highlight {
+  background: linear-gradient(135deg, var(--primary-light), var(--bg-secondary));
+  border-left: 4px solid var(--primary);
+}
+.card-success { border-left: 4px solid var(--accent); }
+.card-warning { border-left: 4px solid var(--warning); background: #fffbeb; }
+[data-theme="dark"] .card-warning { background: #422006; }
+.card-danger { border-left: 4px solid var(--danger); background: #fef2f2; }
+[data-theme="dark"] .card-danger { background: #450a0a; }
+.card-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.card-title .icon { margin-right: 8px; }
+
+/* One-sentence summary */
+.summary-hero {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white; border-radius: var(--radius-md); padding: 28px 32px; margin: 20px 0;
+  box-shadow: var(--shadow-lg);
+}
+.summary-hero .label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 8px; }
+.summary-hero .text { font-size: 17px; line-height: 1.8; font-weight: 500; }
+.summary-hero .text strong { color: #fef08a; }
+
+/* Info grid */
+.info-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px; margin: 16px 0;
+}
+.info-item {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 16px;
+}
+.info-item .info-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+.info-item .info-value { font-size: 14px; color: var(--text); font-weight: 500; line-height: 1.5; }
+
+/* ========== DyRAMO-specific visual language ========== */
+.paper-hook { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:18px 0 22px; }
+.hook-card { border:1px solid var(--border); border-radius:var(--radius-md); padding:18px; background:var(--bg-secondary); position:relative; overflow:hidden; }
+.hook-card::before { content:''; position:absolute; inset:0 auto 0 0; width:4px; background:var(--primary); }
+.hook-card.risk::before { background:var(--danger); }
+.hook-card.tension::before { background:var(--warning); }
+.hook-card.answer::before { background:var(--accent); }
+.hook-kicker { font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); margin-bottom:5px; }
+.hook-title { font-size:16px; font-weight:750; color:var(--text); margin-bottom:6px; }
+.hook-copy { font-size:13px; line-height:1.65; color:var(--text-secondary); margin:0; }
+.hook-arrow { display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:20px; }
+.playground { border:1px solid var(--border); border-radius:var(--radius-md); background:linear-gradient(135deg,var(--bg-secondary),var(--bg)); padding:20px; margin:20px 0; }
+.playground-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.playground-title { font-size:17px; font-weight:750; color:var(--text); }
+.playground-note { font-size:12px; color:var(--text-muted); max-width:360px; text-align:right; }
+.slider-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.slider-item label { display:flex; justify-content:space-between; font-size:12px; color:var(--text-secondary); margin-bottom:5px; }
+.slider-item output { font-weight:800; color:var(--primary); }
+.slider-item input { width:100%; accent-color:var(--primary); }
+.ad-bars { display:grid; gap:8px; margin:16px 0; }
+.ad-row { display:grid; grid-template-columns:115px 1fr 54px; gap:9px; align-items:center; font-size:12px; color:var(--text-secondary); }
+.ad-track { height:10px; border-radius:999px; background:var(--border-light); overflow:hidden; }
+.ad-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,var(--primary),var(--accent)); transition:width .2s ease; }
+.playground-readout { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:12px; }
+.readout { border-radius:var(--radius); background:var(--bg); border:1px solid var(--border); padding:10px; }
+.readout-label { font-size:11px; color:var(--text-muted); }
+.readout-value { font-size:18px; font-weight:800; color:var(--text); margin-top:2px; }
+.playground-status { margin-top:14px; padding:10px 12px; border-radius:var(--radius); font-size:13px; line-height:1.55; background:var(--primary-light); color:var(--text-secondary); }
+.playground-status.warn { background:#fff7ed; color:#9a3412; }
+[data-theme="dark"] .playground-status.warn { background:#431407; color:#fed7aa; }
+@media (max-width:760px) { .paper-hook,.slider-grid,.playground-readout { grid-template-columns:1fr; } .hook-arrow { transform:rotate(90deg); } .playground-head { display:block; } .playground-note { text-align:left; margin-top:6px; } }
+
+/* ========== Tables ========== */
+.table-wrapper { overflow-x: auto; margin: 16px 0; border-radius: var(--radius); border: 1px solid var(--border); }
+table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+thead { background: var(--primary); color: white; }
+th { padding: 10px 14px; text-align: left; font-weight: 600; white-space: nowrap; }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border-light); color: var(--text-secondary); vertical-align: top; }
+tbody tr:hover { background: var(--bg-secondary); }
+tbody tr:last-child td { border-bottom: none; }
+.tag {
+  display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+}
+.tag-evidence { background: #dcfce7; color: #166534; }
+.tag-inference { background: #fef3c7; color: #92400e; }
+.tag-evaluation { background: #fee2e2; color: #991b1b; }
+[data-theme="dark"] .tag-evidence { background: #14532d; color: #86efac; }
+[data-theme="dark"] .tag-inference { background: #713f12; color: #fde047; }
+[data-theme="dark"] .tag-evaluation { background: #7f1d1d; color: #fca5a5; }
+
+/* ========== Tabs (Evidence / Explanation / Evaluation) ========== */
+.tab-container { margin: 16px 0; }
+.tab-buttons { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 0; }
+.tab-btn {
+  padding: 8px 18px; background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: all 0.2s; margin-bottom: -2px;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+.tab-btn .tab-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.tab-btn[data-tab="evidence"] .tab-dot { background: var(--accent); }
+.tab-btn[data-tab="explanation"] .tab-dot { background: var(--primary); }
+.tab-btn[data-tab="evaluation"] .tab-dot { background: var(--danger); }
+.tab-content { display: none; padding: 16px; background: var(--bg-secondary); border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius) var(--radius); }
+.tab-content.active { display: block; }
+
+/* ========== Collapsible Sections ========== */
+.collapsible { margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.collapsible-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--bg-secondary); cursor: pointer;
+  font-weight: 600; font-size: 14px; color: var(--text); transition: background 0.2s;
+}
+.collapsible-header:hover { background: var(--bg-tertiary); }
+.collapsible-header .arrow { transition: transform 0.3s; font-size: 12px; color: var(--text-muted); }
+.collapsible.open .collapsible-header .arrow { transform: rotate(90deg); }
+.collapsible-body { display: none; padding: 16px; border-top: 1px solid var(--border); }
+.collapsible.open .collapsible-body { display: block; }
+
+/* ========== Figure Styles ========== */
+.figure-container {
+  margin: 24px 0; text-align: center; cursor: zoom-in;
+  border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden;
+  background: var(--bg); transition: box-shadow 0.2s;
+}
+.figure-container:hover { box-shadow: var(--shadow-lg); }
+.figure-container img { display: block; width: 100%; }
+.figure-caption {
+  padding: 14px 20px; text-align: left; background: var(--bg-secondary);
+  border-top: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); line-height: 1.6;
+}
+.figure-caption .fig-title { font-weight: 700; color: var(--primary); margin-bottom: 6px; font-size: 14px; }
+.figure-caption .fig-source { font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic; }
+
+/* Figure Modal */
+.figure-modal {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10000;
+  justify-content: center; align-items: center; padding: 40px;
+}
+.figure-modal.show { display: flex; }
+.figure-modal img { max-width: 95%; max-height: 90vh; border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.figure-modal-close {
+  position: absolute; top: 20px; right: 30px; color: white; font-size: 36px;
+  cursor: pointer; background: none; border: none; line-height: 1;
+}
+
+/* ========== Flow Chart ========== */
+.flow-chart {
+  display: flex; flex-direction: column; align-items: center; gap: 0; margin: 24px 0;
+}
+.flow-step {
+  background: var(--bg-secondary); border: 2px solid var(--primary); border-radius: var(--radius-md);
+  padding: 14px 24px; text-align: center; min-width: 280px; max-width: 500px;
+  position: relative; box-shadow: var(--shadow);
+}
+.flow-step .step-num {
+  position: absolute; top: -12px; left: -12px; background: var(--primary); color: white;
+  width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 13px; font-weight: 700;
+}
+.flow-step .step-title { font-weight: 700; color: var(--text); font-size: 14px; margin-bottom: 4px; }
+.flow-step .step-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.flow-arrow {
+  width: 2px; height: 24px; background: var(--primary); position: relative;
+}
+.flow-arrow::after {
+  content: ''; position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%);
+  border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--primary);
+}
+.flow-step.highlight { background: var(--primary-light); border-color: var(--primary-dark); }
+.flow-step.result { border-color: var(--accent); }
+.flow-step.result .step-num { background: var(--accent); }
+.flow-step.limitation { border-color: var(--warning); }
+.flow-step.limitation .step-num { background: var(--warning); }
+
+/* ========== Metric Cards ========== */
+.metric-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px; margin: 16px 0;
+}
+.metric-card {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px; text-align: center; transition: all 0.2s;
+}
+.metric-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.metric-card .metric-value { font-size: 28px; font-weight: 800; color: var(--primary); line-height: 1.2; }
+.metric-card .metric-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+.metric-card .metric-sub { font-size: 11px; color: var(--accent); margin-top: 2px; font-weight: 600; }
+
+/* ========== Formula Block ========== */
+.formula-block {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-left: 4px solid var(--primary);
+  border-radius: 0 var(--radius) var(--radius) 0; padding: 20px 24px; margin: 16px 0;
+  overflow-x: auto;
+}
+.formula-block .formula-label {
+  font-size: 12px; font-weight: 700; color: var(--primary); text-transform: uppercase;
+  margin-bottom: 10px; letter-spacing: 0.5px;
+}
+.formula-explanation {
+  margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border);
+  font-size: 13px; color: var(--text-secondary); line-height: 1.7;
+}
+.formula-explanation .var-list { margin-top: 8px; }
+.formula-explanation .var-item { display: flex; gap: 10px; margin-bottom: 4px; }
+.formula-explanation .var-symbol { font-weight: 700; color: var(--primary); min-width: 60px; font-family: 'Times New Roman', serif; }
+
+/* ========== Language Toggle ========== */
+.lang-zh { display: inline; }
+.lang-en { display: none; }
+[data-lang="en"] .lang-zh { display: none; }
+[data-lang="en"] .lang-en { display: inline; }
+
+/* ========== Print Mode ========== */
+@media print {
+  .topbar, .sidebar-left, .sidebar-right, #progress-bar, .btn, .search-box { display: none !important; }
+  .main-content { margin: 0 !important; padding: 20px !important; max-width: 100% !important; }
+  .collapsible-body { display: block !important; }
+  .figure-container { break-inside: avoid; }
+  body { font-size: 12px; }
+  .content-section { break-inside: avoid; }
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 1200px) {
+  .sidebar-right { display: none; }
+  .main-content { margin-right: 0; }
+}
+@media (max-width: 900px) {
+  .sidebar-left { transform: translateX(-100%); }
+  .sidebar-left.show { transform: translateX(0); box-shadow: var(--shadow-lg); }
+  .main-content { margin-left: 0; padding: 20px 16px 60px; }
+  .menu-toggle { display: inline-flex !important; }
+  .topbar-title { font-size: 13px; }
+  .info-grid { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.menu-toggle { display: none; }
+
+/* Mobile overlay */
+.sidebar-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99;
+}
+.sidebar-overlay.show { display: block; }
+
+/* Toast notification */
+.toast {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px);
+  background: var(--text); color: var(--bg); padding: 10px 24px; border-radius: 24px;
+  font-size: 13px; font-weight: 500; z-index: 10001; transition: transform 0.3s;
+  box-shadow: var(--shadow-lg);
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* Section badge */
+.source-badge {
+  display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px;
+  background: var(--bg-tertiary); color: var(--text-muted); margin-left: 8px;
+  font-weight: 500; vertical-align: middle;
+}
+</style>
+</head>
+<body>
+
+<!-- Reading Progress Bar -->
+<div id="progress-bar"></div>
+
+<!-- Top Bar -->
+<header class="topbar">
+  <button class="btn btn-icon menu-toggle" onclick="toggleSidebar()" title="目录">☰</button>
+  <div class="topbar-title">
+    <span>DyRAMO</span> 论文精读 · Reward hacking in multi-objective molecular design
+  </div>
+  <div class="topbar-actions">
+    <div class="search-box" id="searchBox">
+      <button class="btn btn-icon" onclick="toggleSearch()" title="搜索">🔍</button>
+      <input type="text" id="searchInput" placeholder="搜索关键词..." oninput="doSearch(this.value)">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+    <button class="btn btn-icon" onclick="toggleLang()" title="中英文切换" id="langBtn">中/EN</button>
+    <button class="btn btn-icon" onclick="toggleTheme()" title="深色模式" id="themeBtn">🌙</button>
+    <button class="btn btn-icon" onclick="exportMarkdown()" title="导出Markdown">📥</button>
+    <button class="btn btn-icon" onclick="window.print()" title="打印">🖨️</button>
+  </div>
+</header>
+
+<!-- Sidebar Overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="layout">
+  <!-- Left Sidebar: TOC -->
+  <nav class="sidebar-left" id="sidebarLeft">
+    <div class="toc-section"><div class="toc-section-title">📋 论文导航</div>
+      <a class="toc-item" href="#overview">论文概览</a><a class="toc-item" href="#summary">核心矛盾与答案</a>
+      <a class="toc-item" href="#flow">整体研究流程</a><a class="toc-item" href="#key-findings">核心发现与问题</a>
+      <a class="toc-item" href="#reading-guide">阅读建议</a><a class="toc-item" href="#abstracts">简明摘要</a>
+    </div>
+    <div class="toc-section"><div class="toc-section-title">📖 分章节精读</div>
+      <a class="toc-item" href="#sec-abstract">Abstract 摘要</a><a class="toc-item" href="#sec-intro">Introduction 引言</a>
+      <a class="toc-item" href="#sec-construction">DyRAMO 构建</a><a class="toc-item" href="#sec-results">结果：EGFR 设计</a>
+      <a class="toc-item" href="#sec-priority">属性优先级</a><a class="toc-item" href="#sec-overlap">AD 交集压力测试</a>
+      <a class="toc-item" href="#sec-discussion">Discussion 讨论</a><a class="toc-item" href="#sec-methods">Methods 方法</a>
+    </div>
+    <div class="toc-section"><div class="toc-section-title">🔬 深度解析</div>
+      <a class="toc-item" href="#method-deep">方法详细解析</a><a class="toc-item" href="#figures">图表逐一解析</a>
+      <a class="toc-item toc-l2" href="#fig1">Figure 1</a><a class="toc-item toc-l2" href="#fig2">Figure 2</a>
+      <a class="toc-item toc-l2" href="#fig3">Figure 3</a><a class="toc-item toc-l2" href="#fig4">Figure 4</a>
+      <a class="toc-item toc-l2" href="#fig5">Figure 5</a><a class="toc-item toc-l2" href="#fig6">Figure 6</a>
+      <a class="toc-item" href="#formulas">公式解析</a>
+    </div>
+    <div class="toc-section"><div class="toc-section-title">📊 评价与总结</div>
+      <a class="toc-item" href="#conclusions">核心结论</a><a class="toc-item" href="#innovation">创新点分析</a>
+      <a class="toc-item" href="#limitations">局限性与批判</a><a class="toc-item" href="#reproducibility">复现指南</a>
+      <a class="toc-item" href="#glossary">中英文术语表</a><a class="toc-item" href="#references">参考文献说明</a>
+      <a class="toc-item" href="#advisor-report">导师汇报版</a><a class="toc-item" href="#defense-qa">答辩问题</a>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content" id="mainContent">
+    <!-- Content will be injected by JavaScript -->
+  </main>
+
+  <!-- Right Sidebar -->
+  <aside class="sidebar-right" id="sidebarRight">
+    <div class="right-widget">
+      <div class="right-widget-title">🎯 关键结论</div>
+      <div id="keyConclusions"></div>
+    </div>
+    <div class="right-widget">
+      <div class="right-widget-title">📚 核心术语</div>
+      <div id="keyTerms"></div>
+    </div>
+    <div class="right-widget">
+      <div class="right-widget-title">⚠️ 需警惕的问题</div>
+      <div id="keyQuestions"></div>
+    </div>
+  </aside>
+</div>
+
+<!-- Figure Modal -->
+<div class="figure-modal" id="figureModal" onclick="closeFigureModal()">
+  <button class="figure-modal-close">&times;</button>
+  <img id="figureModalImg" src="" alt="">
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// 论文精读内容数据
+// ============================================================
+const PAPER_DATA = {
+  "info": {
+    "titleEn": "A data-driven generative strategy to avoid reward hacking in multi-objective molecular design",
+    "titleZh": "一种避免多目标分子设计中奖励劫持的数据驱动生成策略",
+    "authors": "Tatsuya Yoshizawa, Shoichi Ishida, Tomohiro Sato, Masateru Ohta, Teruki Honma, Kei Terayama",
+    "journal": "Nature Communications",
+    "year": "2025",
+    "volume": "16:2409（Received 24 July 2024; Accepted 24 February 2025）",
+    "doi": "10.1038/s41467-025-57582-3",
+    "url": "https://doi.org/10.1038/s41467-025-57582-3",
+    "field": "计算药物设计、分子生成、多目标优化、机器学习可靠性",
+    "keywords": "DyRAMO, reward hacking, applicability domain, Bayesian optimization, ChemTSv2, EGFR",
+    "paperType": "方法框架 + 计算分子设计验证",
+    "researchObject": "EGFR 抑制剂的多目标分子设计：EGFR 抑制活性、代谢稳定性、膜通透性；另含 13 属性扩展场景",
+    "researchQuestion": "如何在生成模型的多目标分子设计中，同时提高预测可靠性并避免模型外推导致的 reward hacking？",
+    "mainConclusion": "DyRAMO 用贝叶斯优化动态搜索各属性的可靠性阈值，以 DSS 评分平衡可靠性与多目标性质；在 EGFR 设计中得到高预测值、高可靠性分子，并可按用户优先级调整阈值。",
+    "audience": "计算化学、药物设计、分子生成、机器学习可靠性与贝叶斯优化研究者",
+    "evidenceLevel": "中等偏强：方法在计算基准和 EGFR 案例中重复验证，并公开代码/数据；尚未完成真实生物实验验证，性质值主要来自预测模型。"
+  },
+  "oneSentence": "针对【多目标生成式分子设计中的预测外推与奖励劫持】，作者提出【DyRAMO（Dynamic Reliability Adjustment for Multi-objective Optimization）】，通过【以 MTS 定义各预测模型的适用域、用 ChemTSv2 生成分子，并用贝叶斯优化搜索可靠性阈值】发现【可在可靠性与多目标性质之间取得更好的平衡，且能按属性优先级调整可靠性】，说明【动态而非预先固定的适用域阈值有助于降低奖励劫持风险】。",
+  "metrics": [
+    [
+      "3",
+      "核心属性",
+      "EGFR 抑制活性、代谢稳定性、膜通透性"
+    ],
+    [
+      "0.66/0.55/0.43",
+      "DyRAMO 阈值",
+      "三属性案例中的优化可靠性水平"
+    ],
+    [
+      "≈0.38",
+      "BO 探索 DSS",
+      "最终约达到的 DSS；随机探索约在 0–0.2 波动"
+    ],
+    [
+      "200",
+      "每次设计分子数",
+      "图 3a/b 移动平均所基于的分子设计序列"
+    ],
+    [
+      "40",
+      "一个 BO episode",
+      "10 次随机初始化 + 30 次 BO 探索"
+    ],
+    [
+      "777",
+      "去除的相似分子",
+      "MTS>0.5 的跨数据集相似分子（Fig. 6）"
+    ]
+  ],
+  "flow": [
+    {
+      "num": 1,
+      "title": "研究背景",
+      "desc": "生成模型可快速提出候选，但预测模型在训练分布外可能失真，造成 reward hacking。"
+    },
+    {
+      "num": 2,
+      "title": "关键难点",
+      "desc": "多目标任务有多个预测模型和多个 AD；阈值过严会没有交集，过松又会降低可靠性。"
+    },
+    {
+      "num": 3,
+      "title": "研究目标",
+      "desc": "动态寻找每个属性的可靠性水平，在预测可靠性和多目标性质之间取得平衡。"
+    },
+    {
+      "num": 4,
+      "title": "DyRAMO 设计",
+      "desc": "MTS 定义 AD；ChemTSv2 在交集内生成分子；DSS 同时评估可靠性和性质；BO 搜索阈值组合。"
+    },
+    {
+      "num": 5,
+      "title": "EGFR 验证",
+      "desc": "联合优化 EGFR 抑制活性、代谢稳定性和膜通透性，并与不考虑可靠性的生成进行对比。"
+    },
+    {
+      "num": 6,
+      "title": "主要结果",
+      "desc": "DyRAMO 生成高预测值且落在各 AD 内的分子，复现了 gefitinib 等已知 EGFR 抑制剂。"
+    },
+    {
+      "num": 7,
+      "title": "优先级控制",
+      "desc": "通过 DSS 中 Scaler 的 σ 权重提高指定属性的可靠性，得到可解释的优先级变化。"
+    },
+    {
+      "num": 8,
+      "title": "边界测试",
+      "desc": "移除 777 个跨数据集相似分子后仍能复现已知抑制剂，说明 AD 交集不明显时仍有潜力。"
+    },
+    {
+      "num": 9,
+      "title": "局限与未来",
+      "desc": "MTS 可能受 activity cliffs 影响；DSS/奖励定义仍需研究；需要实验验证和更物理机制的性质评估。"
+    }
+  ],
+  "keyFindings": [
+    "DyRAMO 将每个性质的可靠性水平作为待搜索变量，并以 DSS 同时奖励可靠性与多目标性质；BO 探索的 DSS 约升至 0.38，而随机探索在 0–0.2 间波动【来源：第6页，Figure 4a】。",
+    "EGFR 三属性案例中，DyRAMO 得到的阈值为 EGFR 抑制活性 0.66、代谢稳定性 0.55、膜通透性 0.43；生成分子在各自 AD 内且预测性质整体变好，而不考虑可靠性时出现 reward hacking【来源：第4–5页，Figure 3】。",
+    "将抑制活性设为高优先级时，其探索可靠性均值约为 0.63，高于无优先级约 0.53；代谢稳定性或膜通透性优先级也产生对应提高【来源：第7–8页，Figure 5】。"
+  ],
+  "keyQuestions": [
+    "论文的性质值主要来自 LightGBM 预测模型，生成分子是否真实具备活性、稳定性和通透性仍需实验验证【来源：第9页，Discussion】。",
+    "MTS 是结构相似度代理；activity cliffs 会使结构相似但活性差异很大的分子被错误判为可靠，作者明确将其列为未解决问题【来源：第7页，Discussion】。",
+    "DSS 使用的 Scaler、σ、top 10% Reward 和 Dscore 都会影响搜索结果；论文把 Dscore 作为示例，其他加权和或 Pareto 方法可能得到不同结论【来源：第4页和第7页】。"
+  ],
+  "readingGuide": {
+    "firstRead": "先看 Figure 1 理解多个 AD 的冲突，再看 Figure 2 把握 DyRAMO 三步循环；随后读 Figure 3 的 reward hacking 对照和 Figure 4 的 BO 搜索。",
+    "keyFigures": "Figure 2（框架）、Figure 3（可靠性对照）、Figure 4（BO 与随机搜索）、Figure 5（属性优先级）、Figure 6（AD 交集不足时的复现）。",
+    "hardSections": "DSS 公式、条件 Reward 公式、MTS/AD 阈值的含义，以及 Scaler 的 σ 如何改变属性优先级。",
+    "cautiousConclusions": "“避免 reward hacking”在本文中主要表示预测空间内的可靠性约束；它不等于已证明真实药效或安全性，也不等于适用于所有数据集和所有 AD 定义。"
+  },
+  "abstracts": [
+    {
+      "title": "100字以内中文摘要",
+      "content": "本文提出 DyRAMO，用贝叶斯优化动态调整多个预测模型的可靠性阈值，并以 DSS 平衡适用域可靠性与多目标性质。在 EGFR 抑制剂设计中，DyRAMO 生成了高预测值、高可靠性分子，并支持按属性优先级调整。"
+    },
+    {
+      "title": "200字以内中文摘要",
+      "content": "生成式分子设计依赖预测模型，候选一旦偏离训练分布，预测奖励可能被“劫持”。多目标任务中多个适用域的交集大小难以预先确定。DyRAMO 用 MTS 定义每个属性的适用域，用 ChemTSv2 在交集内生成分子，再以 DSS 评价可靠性和性质，并用贝叶斯优化高效搜索阈值组合。EGFR 三属性案例显示，DyRAMO 生成了包含 gefitinib 的可靠候选；将属性加权后，可靠性会按优先级变化。"
+    },
+    {
+      "title": "English Brief Abstract",
+      "content": "DyRAMO dynamically searches reliability levels for multiple property predictors during multi-objective molecular generation. It combines Tanimoto-similarity-based applicability domains, ChemTSv2 generation, a DSS score, and Bayesian optimization. In EGFR inhibitor design, the framework produced molecules with high predicted activity, metabolic stability and permeability while remaining within the selected domains, and adjusted reliability according to user-specified property priorities. The evidence is computational and still requires experimental validation."
+    },
+    {
+      "title": "适合向导师汇报的版本",
+      "content": "这篇 Nature Communications 论文针对多目标分子生成中的 reward hacking，提出 DyRAMO：把各预测模型的 AD 可靠性阈值交给 BO 动态寻找，用 DSS 同时约束可靠性和性质优化。EGFR 案例中它避免了不考虑可靠性时的离域分子，并能按优先级提高某一属性的可靠性；但结论仍基于预测模型，MTS 与 DSS 的定义及真实实验外推是关键限制。"
+    },
+    {
+      "title": "适合向非专业人士解释的版本",
+      "content": "如果 AI 只看预测分数找药，它可能钻模型漏洞：模型以为某个奇怪分子很好，但现实并不好。DyRAMO 给每个预测器画出一个“可信区域”，并自动寻找既能得到高分、又不离开可信区域的分子；如果某个性质更重要，还可以让它的可信区域约束更严格。"
+    }
+  ],
+  "sectionOrder": [
+    "abstract",
+    "introduction",
+    "construction",
+    "results",
+    "priority",
+    "overlap",
+    "discussion",
+    "methods"
+  ],
+  "sections": {
+    "abstract": {
+      "title": "Abstract 摘要",
+      "source": "第1页",
+      "content": "摘要指出，数据驱动生成式分子设计会因预测模型无法外推而发生 reward hacking。多目标优化还要求同时处理多个 AD，可靠性水平不能简单预先设定。作者提出 DyRAMO，动态调整各属性可靠性，在 EGFR 抑制剂设计中得到高预测值和高可靠性的候选，并可按用户优先级自动调整。",
+      "keySentences": [
+        {
+          "en": "We propose a reliable design framework to perform multi-objective optimization using generative models while preventing reward hacking.",
+          "zh": "作者提出一种可靠设计框架，借助生成模型进行多目标优化，同时避免 reward hacking。"
+        },
+        {
+          "en": "The reliability levels can be automatically adjusted according to the property prioritization specified by the user.",
+          "zh": "可靠性水平可以依据用户指定的属性优先级自动调整。"
+        }
+      ],
+      "answers": "摘要回答研究动机、方法和应用结果，但没有声称真实药效已被实验确认。",
+      "concepts": [
+        {
+          "en": "Reward hacking",
+          "zh": "奖励劫持",
+          "desc": "优化器利用预测奖励函数的漏洞获得高分，候选却可能脱离训练分布并不可靠。"
+        },
+        {
+          "en": "Applicability domain",
+          "zh": "适用域（AD）",
+          "desc": "模型在给定可靠性水平下预计能保持预测准确性的响应与化学结构空间。"
+        },
+        {
+          "en": "Multi-objective optimization",
+          "zh": "多目标优化",
+          "desc": "同时优化多个可能相互冲突的性质。"
+        }
+      ],
+      "logic": "摘要提出问题并给出答案；引言解释为什么多 AD 使问题更难，结果和方法提供证据。",
+      "focus": "注意“predicted values and reliabilities”是预测层面的成功，不等同于实验成功。",
+      "issues": "论文未报告生成分子的系统湿实验验证；可靠性由所选 AD 指标定义。"
+    },
+    "introduction": {
+      "title": "Introduction 引言",
+      "source": "第1–3页",
+      "content": "引言将分子设计视为逆问题：生成候选、计算奖励、迭代优化。模拟较准确但昂贵，监督学习预测较快却可能在训练数据外失效。多目标设计需要同时优化性质，模型一旦被生成器带到训练空间外，就会出现预测高分但候选不理想的 reward hacking。AD 可以约束可靠性，但多个预测器的 AD 交集会随阈值变化，且无法在设计前知道合理阈值。因此需要动态搜索。",
+      "keySentences": [
+        {
+          "en": "Setting the appropriate reliability levels of the ADs before designing is difficult.",
+          "zh": "在设计前设定合适的 AD 可靠性水平很困难。"
+        },
+        {
+          "en": "To overcome this difficulty, we developed ... DyRAMO.",
+          "zh": "为克服这一困难，作者开发了 DyRAMO。"
+        },
+        {
+          "en": "Bayesian optimization was integrated into this approach.",
+          "zh": "该方法整合了贝叶斯优化。"
+        }
+      ],
+      "answers": "引言界定了 reward hacking 的成因，并把“多个 AD 的阈值选择”转化为待优化的黑箱问题。",
+      "concepts": [
+        {
+          "en": "De novo molecular design",
+          "zh": "从头分子设计",
+          "desc": "从分子结构空间生成满足目标性质的新候选。"
+        },
+        {
+          "en": "Prediction reliability",
+          "zh": "预测可靠性",
+          "desc": "预测值在相应结构/响应区域内保持可信的程度。"
+        },
+        {
+          "en": "Bayesian optimization",
+          "zh": "贝叶斯优化（BO）",
+          "desc": "用代理模型和采集策略高效寻找黑箱目标较优输入。"
+        }
+      ],
+      "logic": "引言的问题定义直接导出 DyRAMO 的三步循环和 BO 外层搜索。",
+      "focus": "论文以 EGFR 为验证场景，不能仅凭该案例证明所有药物设计任务都有效。",
+      "issues": "多个 AD 是否真正代表各模型误差仍取决于 AD 指标和训练数据。"
+    },
+    "construction": {
+      "title": "Results：Construction of DyRAMO",
+      "source": "第3–4页，Figure 2",
+      "content": "DyRAMO 每轮执行三步。第一步为每个属性设定可靠性水平 ρᵢ，并以训练集中的最大 Tanimoto 相似度（MTS）定义 AD；第二步用 ChemTSv2 生成同时满足各 AD 并优化性质的分子；第三步用 DSS 评价阈值组合：各属性可靠性经 Scaler 标准化后取几何平均，再乘以生成分子 top 10% Reward 的平均值。外层 BO 最大化 DSS。",
+      "keySentences": [
+        {
+          "en": "At a reliability level ρ, a molecule is included in the AD ... if the highest value of Tanimoto similarities ... exceeds ρ.",
+          "zh": "在可靠性水平 ρ 下，若分子与该模型训练数据的最高 Tanimoto 相似度超过 ρ，则视为位于 AD 内。"
+        },
+        {
+          "en": "By repeating this cycle, an appropriate combination of the reliability levels is searched for so as to improve the DSS score.",
+          "zh": "重复该循环，搜索能提高 DSS 的可靠性水平组合。"
+        }
+      ],
+      "answers": "本节回答 DyRAMO 如何把可靠性约束嵌入分子生成，并如何把阈值选择变成 BO 目标。",
+      "concepts": [
+        {
+          "en": "MTS",
+          "zh": "最大 Tanimoto 相似度",
+          "desc": "候选分子与某属性模型训练分子之间的最大指纹相似度。"
+        },
+        {
+          "en": "DSS",
+          "zh": "同时满足度（Degree of Simultaneous Satisfaction）",
+          "desc": "同时衡量可靠性水平与多性质优化程度的综合分数。"
+        },
+        {
+          "en": "Dscore",
+          "zh": "Dscore",
+          "desc": "各属性 desirability 的加权几何平均，用于平衡多目标性质。"
+        }
+      ],
+      "logic": "Figure 2 的三步循环是全文方法主线；Eq. (1) 给出 DSS，Eq. (2) 给出受 AD 门控的 Reward。",
+      "focus": "重点核对 ρ、Scaler、top X% 的定义，以及“低于任一阈值 Reward=0”的硬门控。",
+      "issues": "MTS 是简单且常用的 AD 选择，但结构相似度不必然等同于预测可靠性。"
+    },
+    "results": {
+      "title": "Results：Multi-objective optimization avoiding reward hacking",
+      "source": "第4–6页，Figure 3–4",
+      "content": "作者以 EGFR 为靶点，联合优化 EGFR 抑制活性、代谢稳定性和膜通透性。三属性模型的可靠性阈值优化为 0.66、0.55、0.43。随着设计推进，三类预测性质提高，MTS 超过阈值；不考虑可靠性的对照虽然预测奖励更高，却生成与训练数据相距很远的分子。DyRAMO 设计出的候选有 quinazoline 子结构，并在移除 approved drugs 后重新生成了 gefitinib。BO 搜索 DSS 约达到 0.38，随机搜索持续在 0–0.2。",
+      "keySentences": [
+        {
+          "en": "The optimized reliability levels were 0.66 for inhibitory activity, 0.55 for metabolic stability, and 0.43 for membrane permeability.",
+          "zh": "优化后的可靠性水平分别为抑制活性 0.66、代谢稳定性 0.55、膜通透性 0.43。"
+        },
+        {
+          "en": "Multi-objective optimization without considering prediction reliability resulted in reward hacking.",
+          "zh": "不考虑预测可靠性的多目标优化导致了 reward hacking。"
+        },
+        {
+          "en": "DyRAMO reproduced gefitinib ... removed from the training data.",
+          "zh": "在从训练数据中移除后，DyRAMO 重新生成了 gefitinib。"
+        }
+      ],
+      "answers": "结果回答可靠性门控是否改变生成轨迹，以及 BO 是否比随机阈值探索更有效。",
+      "concepts": [
+        {
+          "en": "pIC50",
+          "zh": "pIC50",
+          "desc": "半数最大抑制浓度 IC50 的负对数；数值越高表示预测抑制活性越强。"
+        },
+        {
+          "en": "Quinazoline",
+          "zh": "喹唑啉骨架",
+          "desc": "许多已知 EGFR 抑制剂中的结构片段；本文在候选中观察到该子结构。"
+        },
+        {
+          "en": "Reward hacking",
+          "zh": "奖励劫持",
+          "desc": "预测奖励优化成功但分子偏离训练数据、可靠性下降的现象。"
+        }
+      ],
+      "logic": "Figure 3 展示分子设计结果，Figure 4 展示阈值探索；两者共同支撑 DyRAMO 的计算有效性。",
+      "focus": "DSS 约 0.38 是该设置下的综合分数，不是普适性能指标；预测性质来自单个模型运行。",
+      "issues": "生成候选靠近训练数据可能提高预测可靠性，但也可能限制新颖性；论文只报告其扩展到部分未探索化学空间。"
+    },
+    "priority": {
+      "title": "Results：Prioritizing properties in reliability adjustment",
+      "source": "第6–8页，Figure 5",
+      "content": "作者通过改变 DSS 中 Scaler 的 σ 设置四种情景：无优先级、抑制活性优先、代谢稳定性优先、膜通透性优先。高优先级属性使用更严格的 σ=0.15，其他属性使用较宽松的 σ=0.35。抑制活性优先时，其可靠性均值约 0.63，高于无优先级约 0.53；另外两种优先级也分别提高了相应属性的可靠性。",
+      "keySentences": [
+        {
+          "en": "It is desirable to have high prediction reliability for properties of high importance.",
+          "zh": "对于高重要性的属性，希望具有更高的预测可靠性。"
+        },
+        {
+          "en": "DyRAMO can adjust the reliability, reflecting priorities among the target properties.",
+          "zh": "DyRAMO 能够调整可靠性，使其反映目标属性之间的优先级。"
+        }
+      ],
+      "answers": "本节验证用户偏好能否通过 DSS 参数传递到可靠性阈值。",
+      "concepts": [
+        {
+          "en": "Property prioritization",
+          "zh": "属性优先级",
+          "desc": "在多个目标之间指定哪一项更不能容忍预测不可靠。"
+        },
+        {
+          "en": "Scaler σ",
+          "zh": "Scaler 的 σ 参数",
+          "desc": "控制可靠性标准化函数的严格程度；σ 越小越敏感/严格。"
+        },
+        {
+          "en": "Box-and-whisker plot",
+          "zh": "箱线图",
+          "desc": "展示中位数、四分位范围和指定百分位范围的分布图。"
+        }
+      ],
+      "logic": "这是从“均衡可靠性”到“可控可靠性”的扩展，Figure 5 将参数设定与阈值分布对应起来。",
+      "focus": "优先级效果由 σ 的人为设定实现，并不代表模型自动学习了真实临床重要性。",
+      "issues": "不同属性的量纲、模型误差和训练数据差异也可能影响阈值分布。"
+    },
+    "overlap": {
+      "title": "Results：When overlap of ADs is not expected",
+      "source": "第7–9页，Figure 6",
+      "content": "为模拟各属性训练集差异较大、AD 交集很小的场景，作者删除了跨三个数据集且 MTS>0.5 的 777 个分子，重建预测模型后再次运行 DyRAMO。ChemTSv2 成功重新生成被排除的已知 EGFR 抑制剂；这些分子的实验 pIC50 约为 7–8，代谢稳定性和膜通透性的预测值总体也较好。",
+      "keySentences": [
+        {
+          "en": "A total of 777 molecules were removed.",
+          "zh": "总计移除了 777 个分子。"
+        },
+        {
+          "en": "ChemTSv2 with adjusted reliability levels successfully reproduced known EGFR inhibitors.",
+          "zh": "使用调整后可靠性水平的 ChemTSv2 成功复现了已知 EGFR 抑制剂。"
+        }
+      ],
+      "answers": "本节回答 DyRAMO 是否依赖训练集之间已有的大量重叠。",
+      "concepts": [
+        {
+          "en": "AD overlap",
+          "zh": "适用域交集",
+          "desc": "同时满足多个预测模型可靠性阈值的化学空间。"
+        },
+        {
+          "en": "Novel molecule",
+          "zh": "新颖分子",
+          "desc": "不直接等同于训练集已知结构，但仍可能位于各 AD 的可接受区域。"
+        }
+      ],
+      "logic": "Figure 6 是对 Figure 3 结果的边界压力测试，为“交集不明显时仍可探索”提供计算证据。",
+      "focus": "复现已知抑制剂说明生成能力，但并不等于发现全新且实验有效的药物。",
+      "issues": "777 的删除规则和 MTS 阈值仍由作者设定；不同阈值可能改变难度。"
+    },
+    "discussion": {
+      "title": "Discussion 讨论",
+      "source": "第7页",
+      "content": "讨论将 reward hacking 视为难以完全避免的问题，并认为 DyRAMO 通过可调 AD 和 DSS/BO 搜索提供了实用缓解。作者明确承认三类后续问题：如何为不同数据集选择更合适的可靠性/AD 指标；activity cliffs 会破坏结构相似度与可靠性的对应；Reward 与 DSS 的设计仍有替代方案。目标属性增多时，可靠性水平往往降低。未来可加入新数据或量子化学、全原子、粗粒化、对接等物理模拟。",
+      "keySentences": [
+        {
+          "en": "Activity cliffs ... require particular caution.",
+          "zh": "activity cliffs 现象需要特别谨慎。"
+        },
+        {
+          "en": "The design of the reward ... and the DSS score, may also have areas for advancement.",
+          "zh": "奖励函数和 DSS 评分的设计仍有改进空间。"
+        },
+        {
+          "en": "Experimental validation ... will be necessary in the future.",
+          "zh": "未来需要进行实验验证。"
+        }
+      ],
+      "answers": "讨论区分了方法在计算预测空间中的成功与真实应用的未完成验证。",
+      "concepts": [
+        {
+          "en": "Activity cliff",
+          "zh": "活性悬崖",
+          "desc": "结构相似分子却表现出显著不同活性的现象。"
+        },
+        {
+          "en": "External validity",
+          "zh": "外部有效性",
+          "desc": "方法从当前数据集和模拟设置推广到其他任务/实验环境的程度。"
+        }
+      ],
+      "logic": "讨论承接结果，解释为什么 AD 约束有效，同时列出指标、奖励、数据和实验验证的边界。",
+      "focus": "论文没有给出真实湿实验、前瞻性药效或毒性结论；这些应明确标记为未证明。",
+      "issues": "作者提出的未来方向尚未被本文数据验证。"
+    },
+    "methods": {
+      "title": "Methods 方法",
+      "source": "第9–10页",
+      "content": "分子生成器 ChemTSv2 将 RNN 与 MCTS 结合：节点代表 SMILES 中的原子，MCTS 依次进行 selection、expansion、simulation 和 back-propagation，以 UCB 平衡探索与利用。RNN 用 ChEMBL 的 224,153 个分子和 randomized SMILES 训练。性质预测模型使用 Morgan fingerprint（半径 2、维度 2048）、LightGBM，并用 Optuna 调参、5-fold 交叉验证评估，最终在全数据上训练。三属性情景使用 EGFR 抑制活性、代谢稳定性和膜通透性；13 属性情景再加入 8 个酪氨酸激酶、hERG 和溶解度。BO 阈值搜索使用 PHYSBO 的 expected improvement，10 次随机初始化 + 30 次 BO，5 个 episode。",
+      "keySentences": [
+        {
+          "en": "The RNN model was trained using 224,153 molecules from the ChEMBL database.",
+          "zh": "RNN 使用 ChEMBL 数据库中的 224,153 个分子训练。"
+        },
+        {
+          "en": "The prediction performance of each model was evaluated using 5-fold cross-validation.",
+          "zh": "每个预测模型用 5 折交叉验证评估性能。"
+        },
+        {
+          "en": "After 10 random explorations ... 30 explorations were conducted using BO.",
+          "zh": "先进行 10 次随机探索，再用 BO 进行 30 次探索。"
+        }
+      ],
+      "answers": "方法部分提供生成器、预测器、特征、交叉验证和 BO 搜索预算，支撑复现与批判性评价。",
+      "concepts": [
+        {
+          "en": "ChemTSv2",
+          "zh": "ChemTSv2",
+          "desc": "用 RNN 生成 SMILES、用 MCTS 搜索化学空间的分子生成器。"
+        },
+        {
+          "en": "Morgan fingerprint",
+          "zh": "Morgan 分子指纹",
+          "desc": "将分子结构映射为位向量，用于相似度和机器学习特征。"
+        },
+        {
+          "en": "LightGBM",
+          "zh": "LightGBM",
+          "desc": "基于梯度提升决策树的高效监督学习算法。"
+        },
+        {
+          "en": "Expected improvement",
+          "zh": "期望改进（EI）",
+          "desc": "贝叶斯优化采集函数，平衡已有高值区域和可能带来改进的不确定区域。"
+        }
+      ],
+      "logic": "方法从候选生成到性质预测、AD 评估和 BO 阈值搜索形成闭环。",
+      "focus": "复现时应核对数据拆分、模型随机种子、LightGBM/Optuna 超参数和 ChemTSv2 的 UCB 参数 C。",
+      "issues": "主文仍有实现层面的未充分说明，例如完整超参数、各预测模型的具体数据量和所有随机种子。"
+    }
+  },
+  "methodDeep": {
+    "design": "双层黑箱优化：内层 ChemTSv2 以受 AD 门控的 Reward 生成分子，外层 BO 以 DSS 搜索各属性可靠性阈值。",
+    "studyObject": "EGFR 抑制剂的三属性和十三属性计算分子设计；另有移除相似分子的 AD 低交集压力测试。",
+    "sampleSize": "三属性主案例每次生成 200 个分子；可靠性阈值 BO 每个 episode 40 次探索，5 个 episode；优先级实验每种情景 150 个阈值样本（30×5）。论文未将所有生成分子总数汇总为一个单一样本量。",
+    "sampleAcquisition": "ChemTSv2 的 RNN 从 ChEMBL randomized SMILES 学习，MCTS 在生成过程中按 UCB 搜索；BO 阈值先随机初始化，再用 expected improvement 选择。",
+    "controlGroup": "不考虑预测可靠性的同一分子生成流程；随机调整可靠性阈值；移除跨数据集相似分子后的重建模型。",
+    "variables": {
+      "independent": "DyRAMO/随机/无可靠性控制；各属性阈值 ρᵢ；Scaler 的 σ 和属性权重；三属性或十三属性设置。",
+      "dependent": "DSS、Reward top 10%、预测属性、MTS/可靠性、阈值分布和复现的实验 pIC50。",
+      "control": "生成器 ChemTSv2、Morgan 指纹参数、预测器训练流程、BO episode 设置等。"
+    },
+    "workflow": "①训练性质预测模型；②为每个属性给定 ρᵢ 并计算 MTS-AD；③ChemTSv2 生成候选，若任一 MTS<ρᵢ 则 Reward=0，否则计算加权几何平均 Dscore；④用 top 10% Reward 和 Scaler(ρᵢ) 计算 DSS；⑤BO 更新 ρᵢ；⑥重复并选择高 DSS 的阈值组合。",
+    "dataSource": "ChEMBL28 的酪氨酸激酶、代谢稳定性和膜通透性数据；Sato et al. 的 hERG 数据；Tayyebi et al. 的溶解度数据；ChEMBL 分子用于生成器训练。来源与代码在论文 GitHub/Zenodo 中给出。",
+    "preprocessing": "RDKit 计算半径 2、2048 维 Morgan fingerprint；跨数据集 MTS>0.5 的 777 个分子在压力测试中移除；生成器采用 randomized SMILES。",
+    "statisticalMethods": "LightGBM 监督预测、5-fold CV、Morgan/Tanimoto 相似度、MCTS、Dscore 加权几何平均、DSS、贝叶斯优化 expected improvement。",
+    "modelIO": {
+      "input": "SMILES 分子字符串；性质模型输入 Morgan fingerprint；BO 输入各属性可靠性阈值组合。",
+      "output": "性质预测值、MTS 可靠性、受 AD 门控的 Reward、DSS，以及下一组阈值。"
+    },
+    "metrics": "DSS；top 10% Reward 平均；各属性预测值的缩放均值；MTS；可靠性阈值分布；EGFR 的实验 pIC50（用于复现分子描述）。",
+    "validation": "5-fold CV 评估性质模型；BO 与随机阈值探索对比；三种属性优先级对比；移除 777 个相似分子的压力测试；补充材料含 3D AD、13 属性和额外生成结果。",
+    "methodSufficiency": "方法足以支持“在该计算设置下，动态阈值能降低预测离域风险并可按优先级调整”的结论；不足以支持真实药效、安全性或普适临床价值。",
+    "biases": "数据集选择可能偏向已有 EGFR/ChEMBL 化学空间；MTS 与 AD 的对应关系可能受 activity cliffs 影响；预测模型误差会被生成器放大；DSS、σ 和 top 10% 选择可能改变结果。"
+  },
+  "modelArchitecture": {
+    "input": "SMILES 分子 → Morgan fingerprint；属性阈值向量 ρ=(ρ₁,…,ρₙ) → BO 外层目标。",
+    "structure": "RNN 生成器 + MCTS 搜索 → LightGBM 多属性预测器 → MTS-AD 门控 → Dscore/Reward → DSS → PHYSBO expected improvement。",
+    "training": "RNN 用 224,153 个 ChEMBL randomized SMILES 训练；属性模型用 fingerprint 和 Optuna 调参并进行 5-fold CV，最终用全数据重训。",
+    "loss": "论文未将 RNN 训练损失或 LightGBM 目标函数完整列出；分子设计阶段使用条件 Reward，外层使用 DSS 最大化。",
+    "optimization": "ChemTSv2 的 MCTS/UCB + PHYSBO 的 expected improvement 贝叶斯优化。",
+    "hyperparameters": "Morgan radius=2、dimension=2048；三属性阈值候选 0.1–0.9，步长 0.01（每属性 80 个）；十三属性候选 0.3/0.4/0.5；BO 10+30 次，5 episodes；σ=0.15/0.25/0.35。",
+    "baselines": "不考虑可靠性的生成；随机阈值探索；移除跨数据集相似分子后重建模型。论文没有将 DyRAMO 与所有现有生成器逐一作统一基准比较。",
+    "metrics": "DSS、Reward top 10%、MTS、预测属性、阈值分布、实验 pIC50。",
+    "advantages": "动态处理多 AD 冲突；不需人工预先确定每个阈值；可表达属性优先级；公开代码和模型数据；可替换其他 AD/不确定性定义。",
+    "disadvantages": "依赖预测器和训练数据；MTS 对 activity cliffs 敏感；DSS/Reward 设计具有选择性；计算和生成设置可能不代表真实实验；属性增多时可靠性可能降低。",
+    "reproducibility": "主代码：https://github.com/ycu-iil/DyRAMO；Zenodo：https://doi.org/10.5281/zenodo.14731974；预测模型与训练数据：https://github.com/ycu-iil/prediction_model_collection。"
+  },
+  "figures": [
+    {
+      "id": 1,
+      "title": "适用域与多目标 AD 冲突",
+      "page": "第2页",
+      "description": "示意 AD 大小随可靠性水平变化，以及多个 AD 合并/分别处理时可能出现的交集不足、设计失败和可靠性权衡。",
+      "axes": "示意图，无定量横纵轴；横向表示化学空间，区域表示 AD。",
+      "legend": "橙色交集为多个 AD 的共同区域；不同可靠性阈值改变各 AD 范围。",
+      "subplots": {
+        "a": "单个 AD：提高可靠性通常缩小化学空间。",
+        "b": "将多个 AD 合并为一个 AD 的策略。",
+        "c": "分别处理多个 AD 时，阈值高低改变交集大小。",
+        "d": "展示成功、落出交集和 AD 不相交等情形。"
+      },
+      "trend": "可靠性越高不一定越容易生成，因为多个 AD 的可行交集可能消失。",
+      "significance": "概念示意图没有统计显著性检验或误差条。",
+      "errorBars": "论文未给出误差条；这是机制示意而非实验数据图。",
+      "support": "引出 DyRAMO 必须动态搜索阈值，而不是一次性固定。",
+      "alternative": "实际可行性还受到生成器能力和训练数据覆盖影响。",
+      "summary": "Figure 1 把多目标可靠性问题转化为 AD 交集与阈值选择问题。",
+      "zhEn": {
+        "适用域": "Applicability domain",
+        "可靠性水平": "Reliability level",
+        "交集": "Overlapping domain"
+      }
+    },
+    {
+      "id": 2,
+      "title": "DyRAMO 工作流",
+      "page": "第3页",
+      "description": "展示设定各属性可靠性水平、在 AD 交集内做分子设计、用 DSS 评价并通过 BO 迭代搜索的三步循环。",
+      "axes": "流程图，无坐标轴。",
+      "legend": "Step 1/2/3 分别代表阈值设定、生成设计和结果评价；BO 加速外层探索。",
+      "subplots": {
+        "a": "设定 ρᵢ 并定义各模型 AD。",
+        "b": "ChemTSv2 同时满足 AD 和多目标性质。",
+        "c": "DSS 汇总可靠性和 top X% Reward，更新阈值。"
+      },
+      "trend": "DSS 是可靠性与性质优化的共同反馈信号。",
+      "significance": "无统计显著性；图为算法流程。",
+      "errorBars": "无误差条。",
+      "support": "说明论文方法如何闭环运行。",
+      "alternative": "流程图不能单独证明候选分子真实有效。",
+      "summary": "Figure 2 给出 DyRAMO 的可复现算法主线。",
+      "zhEn": {
+        "步骤": "Step",
+        "分子设计": "Molecular design",
+        "DSS": "Degree of Simultaneous Satisfaction"
+      }
+    },
+    {
+      "id": 3,
+      "title": "DyRAMO 避免 reward hacking 的分子设计结果",
+      "page": "第4–5页",
+      "description": "比较考虑可靠性与不考虑可靠性的设计轨迹，并展示候选分子的预测值、MTS 和结构。",
+      "axes": "a/b 左图：设计序列；右图：MTS 随设计推进；c–e 为分子示例而非坐标图。",
+      "legend": "蓝色为 EGFR pIC50，绿色为代谢稳定性，红色为膜通透性；虚线为可靠性阈值。",
+      "subplots": {
+        "a": "DyRAMO：预测属性逐步提高且 MTS 超过阈值。",
+        "b": "无可靠性控制：预测值优化但可能离开训练空间。",
+        "c": "DyRAMO 候选含 quinazoline 子结构。",
+        "d": "无可靠性控制的离域候选。",
+        "e": "移除 approved drugs 后仍生成 gefitinib 等候选。"
+      },
+      "trend": "可靠性门控让高预测值与训练数据相似度共同提高；无门控时二者脱钩。",
+      "significance": "正文未报告组间 p 值；图中是移动平均和单模型预测。",
+      "errorBars": "图注说明 c/e 候选来自筛选、聚类和高 Reward 选择；具体误差条信息未提供。",
+      "support": "支持“在预测空间内减少 reward hacking”的结论。",
+      "alternative": "候选结构靠近训练数据可能是 AD 约束带来的，而非真正发现了新的可用化学空间。",
+      "summary": "DyRAMO 让高性质预测与 AD 可靠性同时受到约束。",
+      "zhEn": {
+        "预测值": "Pred.",
+        "可靠性": "Rel.",
+        "最大 Tanimoto 相似度": "MTS"
+      }
+    },
+    {
+      "id": 4,
+      "title": "BO 与随机搜索的可靠性阈值探索",
+      "page": "第6页",
+      "description": "展示 DSS、阈值、预测性质随探索推进的变化，以及 BO 与随机探索在平均可靠性-平均性质空间的轨迹。",
+      "axes": "a–c 横轴为探索步骤；a 为 DSS，b 为可靠性水平，c 为缩放预测性质；d/e 为二维搜索轨迹。",
+      "legend": "BO 与 random exploration 用不同颜色/轨迹表示；d 中颜色由白到橙表示探索进程。",
+      "subplots": {
+        "a": "BO 的 DSS 逐渐提高并约达 0.38；随机探索约 0–0.2。",
+        "b": "阈值后期趋近抑制活性约 0.60、另外两项约 0.40。",
+        "c": "top 10% 分子的缩放预测性质随探索提高。",
+        "d": "BO 向高可靠性和高性质的右上区域推进。",
+        "e": "随机探索难以高效到达右上区域。"
+      },
+      "trend": "BO 比随机阈值探索更快找到兼顾可靠性与性质的区域。",
+      "significance": "论文没有报告显著性检验；曲线/轨迹基于计算探索。",
+      "errorBars": "图注提到虚线跟踪最大 DSS；其余误差表达应以原图为准，文本抽取无法可靠确认具体误差形式。",
+      "support": "证明将阈值组合交给 BO 是有用的外层加速策略。",
+      "alternative": "BO 的优势可能依赖搜索空间、初始化和 DSS 设定。",
+      "summary": "BO 让 DyRAMO 的阈值探索从盲目试错变为有反馈的搜索。",
+      "zhEn": {
+        "DSS": "Degree of Simultaneous Satisfaction",
+        "探索步骤": "Exploration step",
+        "随机探索": "Random exploration"
+      }
+    },
+    {
+      "id": 5,
+      "title": "按属性优先级调整可靠性",
+      "page": "第8页",
+      "description": "比较无优先级、EGFR 抑制活性优先、代谢稳定性优先和膜通透性优先时三个属性的可靠性分布，并展示代表性分子。",
+      "axes": "a 为各属性可靠性箱线图；b–d 为不同优先级的分子示例。",
+      "legend": "灰色无优先级，蓝色抑制活性优先，绿色代谢稳定性优先，红色膜通透性优先；箱体为 IQR，须为 5–95 百分位，圆点为均值。",
+      "subplots": {
+        "a": "高优先级属性的可靠性分布整体上移。",
+        "b": "抑制活性优先的候选。",
+        "c": "代谢稳定性优先的候选。",
+        "d": "膜通透性优先的候选。"
+      },
+      "trend": "Scaler 的 σ 权重能把用户优先级传递到探索得到的可靠性水平。",
+      "significance": "图注未给出传统统计检验；150 个样本来自 30×5 探索。",
+      "errorBars": "箱线图提供分布范围，但不能说明真实性质误差。",
+      "support": "支持 DyRAMO 具有可调的属性优先级机制。",
+      "alternative": "优先级提高可能牺牲其他属性或新颖性；图中示例不足以量化这种代价。",
+      "summary": "改变 σ 后，指定属性会获得更严格的可靠性约束。",
+      "zhEn": {
+        "优先级": "Prioritization",
+        "中位数": "Median",
+        "四分位距": "Interquartile range"
+      }
+    },
+    {
+      "id": 6,
+      "title": "删除相似分子后的复现",
+      "page": "第9页",
+      "description": "展示跨数据集删除相似分子的 Venn 图和 DyRAMO 重新生成已知 EGFR 抑制剂的示例。",
+      "axes": "a 为数据集/删除数量示意；b 为分子示例表，无统一坐标轴。",
+      "legend": "MTS>0.5 的分子被视为跨数据集相似并删除；Pred. 与 Rel. 分别为预测值和 MTS 可靠性。",
+      "subplots": {
+        "a": "共删除 777 个跨数据集相似分子。",
+        "b": "重新生成的已知抑制剂具有实验 pIC50 约 7–8，其他属性预测总体较好。"
+      },
+      "trend": "即使训练集 AD 交集被削弱，DyRAMO 仍能在该计算设置下复现已知抑制剂。",
+      "significance": "没有新的显著性检验；b 的实验 pIC50 是候选已知分子的外部描述。",
+      "errorBars": "图 6 本身没有误差条；具体数值需以图表和补充数据为准。",
+      "support": "支持 AD 交集不明显时仍可进行受约束生成的可行性。",
+      "alternative": "复现已知分子不等于发现新分子，也不能替代实验验证。",
+      "summary": "删除相似训练分子后，DyRAMO 仍能找到可靠的 EGFR 抑制剂候选。",
+      "zhEn": {
+        "删除": "Removal",
+        "实验值": "Experimental value",
+        "复现": "Rediscovery"
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": 1,
+      "title": "DSS：可靠性与多目标优化的同时满足度",
+      "latex": "\\mathrm{DSS}=\\left(\\prod_{i=1}^{n}\\mathrm{Scaler}_{i}(\\rho_i)\\right)^{1/n}\\times\\mathrm{Reward}_{\\mathrm{top}X\\%}",
+      "source": "第4页，Eq. (1)",
+      "variables": [
+        {
+          "symbol": "ρᵢ",
+          "desc": "第 i 个属性预测模型的可靠性阈值。"
+        },
+        {
+          "symbol": "Scalerᵢ",
+          "desc": "把 ρᵢ 按其期望标准化到 0–1 的函数，可用 σ 调整严格程度。"
+        },
+        {
+          "symbol": "n",
+          "desc": "目标属性数量。"
+        },
+        {
+          "symbol": "Reward_topX%",
+          "desc": "生成分子中 top X% Reward 的平均值；本文使用 top 10%。"
+        }
+      ],
+      "intuition": "DSS 只有在可靠性和性质优化都较好时才高。几何平均会惩罚某个属性很差的情况，乘以 top 10% Reward 则把可靠性与实际生成质量连接起来。",
+      "role": "DSS 是 BO 的外层目标，用于选择下一组可靠性阈值。",
+      "example": "若三个 Scaler 为 0.8、0.6、0.5，其几何平均约为 (0.8×0.6×0.5)^(1/3)=0.621；若 top 10% Reward 为 0.7，则 DSS 约为 0.435。实际论文的 Scaler 形式和 Reward 分布应以原文/补充材料为准。"
+    },
+    {
+      "id": 2,
+      "title": "受适用域门控的 Reward",
+      "latex": "\\mathrm{Reward}=\\begin{cases}\\left(\\prod_{i=1}^{n}v_i^{w_i}\\right)^{1/\\sum_i w_i},& s_i\\geq\\rho_i\\;\\forall i\\\\0,&\\text{otherwise}\\end{cases}",
+      "source": "第4页，Eq. (2)",
+      "variables": [
+        {
+          "symbol": "sᵢ",
+          "desc": "候选分子与第 i 个预测模型训练集的 MTS。"
+        },
+        {
+          "symbol": "ρᵢ",
+          "desc": "第 i 个属性的可靠性阈值。"
+        },
+        {
+          "symbol": "vᵢ",
+          "desc": "第 i 个预测性质经 Gaussian scaling 得到的 desirability。"
+        },
+        {
+          "symbol": "wᵢ",
+          "desc": "属性权重，用于优先级控制。"
+        },
+        {
+          "symbol": "n",
+          "desc": "目标属性数量。"
+        }
+      ],
+      "intuition": "候选只要有一个属性低于可靠性阈值，Reward 就被置零；只有同时位于所有 AD 时，才用加权几何平均综合性质。",
+      "role": "这是防止生成器通过离域区域“钻奖励漏洞”的直接机制。",
+      "example": "三属性阈值分别为 0.6、0.5、0.4。候选 MTS=(0.7,0.55,0.35) 虽然前两项合格，但第三项不合格，因此 Reward=0；若 MTS=(0.7,0.55,0.45)，才进入 Dscore 计算。"
+    },
+    {
+      "id": 3,
+      "title": "最大 Tanimoto 相似度作为 AD 可靠性",
+      "latex": "s_i(x)=\\max_{x_j\\in\\mathcal{D}_i}\\mathrm{Tanimoto}(\\mathrm{FP}(x),\\mathrm{FP}(x_j))",
+      "source": "第3–4页，Construction of DyRAMO",
+      "variables": [
+        {
+          "symbol": "x",
+          "desc": "待评估的候选分子。"
+        },
+        {
+          "symbol": "Dᵢ",
+          "desc": "第 i 个属性预测模型的训练分子集合。"
+        },
+        {
+          "symbol": "FP",
+          "desc": "Morgan fingerprint；本文半径 2、维度 2048。"
+        },
+        {
+          "symbol": "sᵢ(x)",
+          "desc": "候选与训练集最相似分子的 Tanimoto 相似度。"
+        }
+      ],
+      "intuition": "候选越像训练数据，越可能处于该预测模型较熟悉的结构空间；ρᵢ 就是把这种相似度转成可靠性门槛。",
+      "role": "定义每个属性的 AD，是 Step 1 和 Reward 门控的基础。",
+      "example": "若候选与训练集三分子的 Tanimoto 相似度为 0.42、0.68、0.51，则 MTS=0.68；阈值 ρ=0.60 时进入 AD，阈值 ρ=0.70 时不进入。论文也提醒 activity cliffs 会削弱该直觉。"
+    }
+  ],
+  "conclusions": {
+    "proven": [
+      {
+        "conclusion": "在本文 EGFR 计算设置中，DyRAMO 能生成同时满足多个 AD 阈值且预测性质较好的候选。",
+        "evidence": "Figure 3a,c,e；第4–6页",
+        "strength": "中等",
+        "alternative": "候选受训练空间约束，预测器本身的误差可能仍被保留。"
+      },
+      {
+        "conclusion": "BO 探索比随机阈值探索更快获得较高 DSS。",
+        "evidence": "Figure 4a,d,e；第6页",
+        "strength": "中等",
+        "alternative": "优势依赖 DSS、搜索范围、初始化和 BO 配置。"
+      },
+      {
+        "conclusion": "改变 Scaler 权重可以使指定属性的可靠性分布提高。",
+        "evidence": "Figure 5；第7–8页",
+        "strength": "中等",
+        "alternative": "权重是人为设定，可能以牺牲其他目标或新颖性为代价。"
+      },
+      {
+        "conclusion": "在移除 777 个跨数据集相似分子后，方法仍能复现已知 EGFR 抑制剂。",
+        "evidence": "Figure 6；第7–9页",
+        "strength": "中等",
+        "alternative": "这是计算复现，不能替代新分子的实验验证。"
+      }
+    ],
+    "speculated": [
+      {
+        "conclusion": "动态 AD 阈值框架具有更广泛的多目标分子设计适用性。",
+        "evidence": "Discussion；第7页",
+        "strength": "推测",
+        "note": "论文提出框架可替换其他 AD/不确定性定义，但跨任务系统基准仍有限。"
+      },
+      {
+        "conclusion": "DyRAMO 可能帮助发现训练数据未覆盖的有前景化学空间。",
+        "evidence": "Figure 3、补充 Fig. S7；第6页",
+        "strength": "推测",
+        "note": "“有前景”仍依据预测值和 AD，不等同于实验活性。"
+      }
+    ],
+    "notProven": [
+      {
+        "conclusion": "生成分子在真实实验中一定有效或安全。",
+        "type": "外部有效性",
+        "note": "论文没有完成系统湿实验验证。"
+      },
+      {
+        "conclusion": "MTS 阈值在所有数据集上都是可靠性的最佳代理。",
+        "type": "指标普适性",
+        "note": "作者明确讨论其他 AD 指标和 activity cliffs 的必要性。"
+      },
+      {
+        "conclusion": "DyRAMO 在临床药物发现中优于所有现有方法。",
+        "type": "比较范围",
+        "note": "本文主要比较可靠性对照和随机探索，未提供完整临床或统一 SOTA 基准。"
+      }
+    ]
+  },
+  "innovation": {
+    "problem": {
+      "genuine": true,
+      "content": "把多目标生成中的“多个 AD 如何取交集”明确化为动态可靠性阈值搜索问题。",
+      "note": "问题动机由 Figure 1 和第3页直接支持。"
+    },
+    "theory": {
+      "genuine": true,
+      "content": "提出以 DSS 同时表达可靠性与多目标性质，并允许通过 Scaler/σ 表达优先级。",
+      "note": "属于框架级形式化，而非新的预测理论。"
+    },
+    "method": {
+      "genuine": true,
+      "content": "将 ChemTSv2 内层生成与 PHYSBO 外层阈值 BO 组合，并用 Reward 硬门控 AD。",
+      "note": "各组件已有先例，组合方式是主要方法贡献。"
+    },
+    "data": {
+      "genuine": false,
+      "content": "论文整合 ChEMBL、hERG、溶解度等公开数据，没有提出新的实验数据集。",
+      "note": "数据贡献主要是任务组合和去相似压力测试。"
+    },
+    "technology": {
+      "genuine": true,
+      "content": "以可替换 AD 定义为接口，理论上可接入 3D 相似度或其他不确定性指标。",
+      "note": "补充材料报告了 3D 指标可行性，但不是主文系统比较。"
+    },
+    "experiment": {
+      "genuine": true,
+      "content": "包含无可靠性对照、随机探索、属性优先级和去相似数据集等多组计算对照。",
+      "note": "覆盖了机制和边界，但仍缺真实实验。"
+    },
+    "application": {
+      "genuine": true,
+      "content": "面向 EGFR 抑制剂设计，并把用户偏好转成可调可靠性约束。",
+      "note": "应用价值是候选生成辅助，不是临床决策证据。"
+    },
+    "comparison": "相对于固定合并 AD 或手动预设阈值，DyRAMO 的新增点是让阈值组合成为 BO 要优化的变量，并用 DSS 统一评价；生成器、MCTS、Morgan 指纹和 LightGBM 本身并非本文首次提出。",
+    "overhype": "“避免 reward hacking”应理解为在预测模型和 AD 定义下减少离域高奖励候选。它不能保证真实性质，也不能消除模型偏差、activity cliffs 或奖励设计风险。"
+  },
+  "limitations": {
+    "studyDesign": {
+      "样本代表性": "验证集中在 EGFR 药物设计和公开计算任务，不能代表所有分子或实验任务。",
+      "对照": "有无可靠性和随机探索对照，但不是覆盖所有现有生成方法的统一基准。",
+      "因果性": "结果支持“AD 门控与 BO 设置有助于减少离域候选”，不能单独证明真实药效因果。"
+    },
+    "data": {
+      "来源": "数据来自公开数据库和文献，具体分布受 ChEMBL/EGFR 任务影响。",
+      "标签": "预测模型标签及测量误差会传递给生成过程；论文未能消除标签误差。",
+      "泄漏": "作者通过移除跨数据集 MTS>0.5 分子做了压力测试，但完整数据拆分细节仍应查代码。"
+    },
+    "method": {
+      "AD 指标": "MTS 简单可解释，但 activity cliffs 可能导致错误可靠性。",
+      "奖励": "Dscore、Scaler、top 10% 和 σ 的选择会改变搜索目标。",
+      "扩展性": "属性数量增多时，多 AD 交集更难，论文报告 13 属性时部分可靠性偏低。"
+    },
+    "results": {
+      "统计显著性": "图表主要展示探索曲线、分布和案例，没有完整显著性检验。",
+      "实际意义": "高预测值和 MTS 不等同于体内活性、毒性或可合成性。",
+      "可重复性": "代码、训练数据和补充材料公开，但随机种子和部分运行细节仍需从仓库确认。"
+    },
+    "externalValidity": {
+      "其他领域": "作者讨论可泛化到其他 AD/不确定性，但主结果集中于分子设计。",
+      "真实应用": "尚无系统湿实验验证。",
+      "伦理与安全": "论文未讨论生成候选的毒性、合成风险和临床转化安全边界。"
+    }
+  },
+  "critique": {
+    "strengths": [
+      "问题定义清楚，将多 AD 阈值冲突转成可优化变量。",
+      "同时提供可靠性对照、随机探索、优先级和去相似压力测试。",
+      "公式、方法、代码、预测模型和训练数据入口较完整。",
+      "明确讨论 MTS、activity cliffs、DSS 和真实实验验证的局限。"
+    ],
+    "weaknesses": [
+      "性质结果主要是模型预测，不是系统实验测量。",
+      "MTS 作为可靠性代理在 activity cliffs 场景可能失效。",
+      "DSS/Scaler/Reward 的设计选择可能带来任务特定偏差。",
+      "与更广泛生成模型和不确定性方法的统一基准比较有限。"
+    ],
+    "topThreeQuestions": [
+      "如果预测器在训练分布外系统性偏差，MTS 门控能否真正发现问题？",
+      "DSS 的阈值和 top 10% 选择改变后，结论是否仍稳定？",
+      "DyRAMO 生成的候选经过湿实验后，预测可靠性与真实活性是否一致？"
+    ],
+    "futureDirections": [
+      "比较距离、范围、概率密度、图表示和 3D 表示的 AD 指标。",
+      "把 activity-cliff 检测纳入 AD 或 Reward。",
+      "用 Pareto、加权和等替代 DSS，并做敏感性分析。",
+      "结合新实验数据、量子化学、对接或其他物理模拟进行前瞻验证。"
+    ],
+    "overallRating": "较强（计算方法证据）",
+    "ratingReason": "论文对多目标可靠性阈值这一实际难点给出了清晰、可实现且有多组计算对照的解决框架；但真实分子性能、指标普适性和跨任务外部有效性仍需实验与更广泛基准确认。"
+  },
+  "reproducibility": {
+    "available": [
+      {
+        "item": "DyRAMO 代码",
+        "detail": "Python 实现、MIT License",
+        "source": "https://github.com/ycu-iil/DyRAMO"
+      },
+      {
+        "item": "Zenodo 归档",
+        "detail": "论文对应版本",
+        "source": "https://doi.org/10.5281/zenodo.14731974"
+      },
+      {
+        "item": "性质模型和训练数据",
+        "detail": "prediction_model_collection",
+        "source": "https://github.com/ycu-iil/prediction_model_collection"
+      },
+      {
+        "item": "复现说明",
+        "detail": "reproduction_instruction.md",
+        "source": "DyRAMO GitHub/doc/reproduction_instruction.md"
+      },
+      {
+        "item": "主要公开软件",
+        "detail": "RDKit、LightGBM、Optuna、PHYSBO、ChemTSv2",
+        "source": "第9–10页 Methods"
+      }
+    ],
+    "partiallyDescribed": [
+      {
+        "item": "ChemTSv2 参数",
+        "detail": "说明 RNN+MCTS、UCB 和训练分子数量",
+        "missing": "完整 UCB C、停止条件、采样细节需查代码"
+      },
+      {
+        "item": "性质模型",
+        "detail": "Morgan 2/2048、LightGBM、Optuna、5-fold CV",
+        "missing": "各数据集样本数、完整超参数和随机种子不在主文集中列出"
+      },
+      {
+        "item": "DSS/Scaler",
+        "detail": "top 10%、σ=0.15/0.25/0.35",
+        "missing": "完整缩放函数形状和所有优先级配置应查补充材料/代码"
+      }
+    ],
+    "notProvided": [
+      {
+        "item": "真实实验验证",
+        "detail": "论文没有系统报告合成、活性或通透性实验",
+        "impact": "不能直接推断实际药效和安全性"
+      },
+      {
+        "item": "统一 SOTA 基准",
+        "detail": "没有覆盖所有相关生成/不确定性方法的统一比较",
+        "impact": "相对优势范围有限"
+      }
+    ],
+    "difficulties": [
+      "需要精确对齐多个数据集、预测模型和 AD 训练集。",
+      "MTS>0.5 去相似规则、属性权重和 Scaler 设置会显著影响结果。",
+      "ChemTSv2、RDKit、LightGBM、Optuna、PHYSBO 的版本差异可能改变随机搜索轨迹。",
+      "图表中的候选结构和补充数据需从论文源数据核对，不能仅依赖 PDF 文本抽取。"
+    ]
+  },
+  "glossary": [
+    {
+      "zh": "奖励劫持",
+      "en": "Reward hacking",
+      "abbr": "—",
+      "meaning": "生成器通过离域候选获得虚高预测奖励。",
+      "plain": "模型被“高分假象”带偏。"
+    },
+    {
+      "zh": "适用域",
+      "en": "Applicability domain",
+      "abbr": "AD",
+      "meaning": "预测模型在给定可靠性下预计可信的空间。",
+      "plain": "模型熟悉、较不容易乱猜的区域。"
+    },
+    {
+      "zh": "最大 Tanimoto 相似度",
+      "en": "Maximum Tanimoto similarity",
+      "abbr": "MTS",
+      "meaning": "候选与训练集最相似分子的指纹相似度。",
+      "plain": "候选和模型见过的分子有多像。"
+    },
+    {
+      "zh": "多目标优化",
+      "en": "Multi-objective optimization",
+      "abbr": "MOO",
+      "meaning": "同时优化多个性质。",
+      "plain": "既要活性高，也要稳定、能穿膜。"
+    },
+    {
+      "zh": "同时满足度",
+      "en": "Degree of Simultaneous Satisfaction",
+      "abbr": "DSS",
+      "meaning": "整合可靠性和 top Reward 的外层目标。",
+      "plain": "既可靠又高分才算好。"
+    },
+    {
+      "zh": "化学生成器",
+      "en": "ChemTSv2",
+      "abbr": "—",
+      "meaning": "RNN+MCTS 生成和搜索 SMILES。",
+      "plain": "一边写分子字符串，一边搜索更好的结构。"
+    },
+    {
+      "zh": "分子指纹",
+      "en": "Morgan fingerprint",
+      "abbr": "FP",
+      "meaning": "分子结构的位向量表示。",
+      "plain": "把结构转成机器能比较的编码。"
+    },
+    {
+      "zh": "贝叶斯优化",
+      "en": "Bayesian optimization",
+      "abbr": "BO",
+      "meaning": "用代理模型高效搜索昂贵黑箱目标。",
+      "plain": "少试几次就找到更好的阈值。"
+    },
+    {
+      "zh": "活性悬崖",
+      "en": "Activity cliff",
+      "abbr": "AC",
+      "meaning": "结构很像但活性差异很大。",
+      "plain": "只看相似结构会误判可靠性。"
+    },
+    {
+      "zh": "半数最大抑制浓度负对数",
+      "en": "Negative log IC50",
+      "abbr": "pIC50",
+      "meaning": "EGFR 抑制活性的常用尺度。",
+      "plain": "数值越大通常表示抑制更强。"
+    }
+  ],
+  "references": {
+    "total": "论文正文引用 80 篇参考文献，涵盖生成式分子设计、reward hacking、AD/不确定性、贝叶斯优化、ChemTSv2、MCTS、分子指纹和药物性质预测。以下仅列与网页精读直接相关的关键文献；完整列表请以论文第10–12页为准。",
+    "key": [
+      {
+        "num": 1,
+        "citation": "Sanchez-Lengeling & Aspuru-Guzik (2018), Inverse molecular design using machine learning",
+        "topic": "逆分子设计"
+      },
+      {
+        "num": 9,
+        "citation": "Perron et al. (2022), Deep generative models for ligand-based de novo design",
+        "topic": "多参数分子优化与 AD"
+      },
+      {
+        "num": 21,
+        "citation": "Gendreau et al. (2023), Molecular assays simulator to unravel predictors hacking",
+        "topic": "reward hacking"
+      },
+      {
+        "num": 43,
+        "citation": "Snoek et al. (2012), Practical Bayesian optimization",
+        "topic": "贝叶斯优化"
+      },
+      {
+        "num": 46,
+        "citation": "Ishida et al. (2023), ChemTSv2",
+        "topic": "分子生成器"
+      },
+      {
+        "num": 50,
+        "citation": "Morgan (1965)；Rogers & Hahn (2010)",
+        "topic": "分子指纹"
+      },
+      {
+        "num": 78,
+        "citation": "Jones et al. (1998), Efficient global optimization",
+        "topic": "Expected improvement"
+      }
+    ],
+    "note": "网页只摘录与 DyRAMO 逻辑直接相关的参考文献，不替代论文完整参考文献表。"
+  },
+  "advisorReport": {
+    "elevator": "DyRAMO 把多目标分子生成中的可靠性阈值选择建模为 BO 问题：用 MTS 定义每个预测器的 AD，用受 AD 门控的 Reward 生成候选，再用 DSS 同时衡量可靠性与性质。EGFR 计算案例显示它比无可靠性控制更少产生离域高分分子，并能按优先级调节各属性可靠性。",
+    "background": "生成模型容易把预测器推到训练分布外，形成 reward hacking；多个属性的 AD 交集无法提前确定。",
+    "method": "ChemTSv2（RNN+MCTS）内层生成，LightGBM 预测性质，MTS 定义 AD，DSS 评价，PHYSBO/expected improvement 搜索阈值。",
+    "results": "三属性阈值约为 0.66/0.55/0.43；BO DSS 约 0.38；优先级设置能提高指定属性的可靠性；删除 777 个相似分子后仍能复现 EGFR 抑制剂。",
+    "significance": "提供了把可靠性约束和用户偏好纳入多目标生成的可实现框架。",
+    "limitations": "性质主要由预测模型给出；MTS 会受 activity cliffs 影响；DSS 设计和真实湿实验验证仍是关键问题。",
+    "recommendation": "汇报时重点展示 Figure 1→2→3→4 的逻辑链，并明确区分预测空间证据与真实药物效果。"
+  },
+  "defenseQA": [
+    {
+      "question": "DyRAMO 如何避免 reward hacking？",
+      "answer": "它把每个预测模型的 MTS 可靠性阈值作为 AD 约束；候选只要有一个属性低于阈值，Reward 就置零，只有同时位于所有 AD 才进入多目标 Dscore。阈值组合再由 BO 通过 DSS 动态搜索。来源：第3–4页 Eq. (1–2)。"
+    },
+    {
+      "question": "为什么不能直接把多个 AD 合并？",
+      "answer": "不同属性模型的训练数据不同，各自 AD 代表的可靠空间也不同，简单合并会掩盖单模型的不确定性；DyRAMO 分别计算 MTS 并要求候选满足每个阈值。来源：第2–3页 Figure 1。"
+    },
+    {
+      "question": "DSS 高是否说明分子真实有效？",
+      "answer": "不能。DSS 只综合预测性质和 MTS 可靠性，可靠性本身是相对于训练数据的结构相似度代理；真实活性、稳定性、通透性仍需实验验证。来源：第7页 Discussion。"
+    },
+    {
+      "question": "MTS 的主要风险是什么？",
+      "answer": "activity cliffs 会导致结构相似但性质差异很大的分子，破坏“相似即可靠”的假设。作者建议研究 activity-cliff 检测和其他 AD 指标。来源：第7页 Discussion。"
+    },
+    {
+      "question": "如何实现属性优先级？",
+      "answer": "通过 DSS 中 Scaler 的 σ 调整严格程度：高优先级属性使用更小 σ，可靠性波动受到更强惩罚；Figure 5 显示指定属性的可靠性分布会上移。来源：第4页和第7–8页。"
+    },
+    {
+      "question": "这篇论文最需要补充的验证是什么？",
+      "answer": "对 DyRAMO 候选进行前瞻性的合成和生物实验，并比较预测可靠性与真实误差；同时做 DSS、MTS 阈值、数据拆分和替代 AD 指标的敏感性分析。"
+    }
+  ]
+};
+
+// ============================================================
+// 渲染函数与交互逻辑
+// ============================================================
+const D = PAPER_DATA;
+const main = document.getElementById('mainContent');
+
+// 工具函数
+function el(tag, attrs={}, children=[]) {
+  const e = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of (Array.isArray(children)?children:[children])) {
+    if (c == null) continue;
+    if (typeof c === 'string' || typeof c === 'number') {
+      e.appendChild(document.createTextNode(String(c)));
+    } else {
+      e.appendChild(c);
+    }
+  }
+  return e;
+}
+function section(id, title, num) {
+  return el('section', {class:'content-section', id}, [
+    el('h2', {}, [num ? el('span',{class:'section-num'},num) : null, title])
+  ]);
+}
+function sourceBadge(text) { return el('span',{class:'source-badge'}, text); }
+
+// 渲染论文概览
+function renderOverview() {
+  const s = section('overview','论文概览','01');
+  const info = D.info;
+  const grid = el('div',{class:'info-grid'});
+  const items = [
+    ['英文标题', info.titleEn], ['中文标题', info.titleZh],
+    ['作者', info.authors], ['期刊/会议', info.journal],
+    ['发表年份', info.year + '（' + info.volume + '）'],
+    ['DOI', el('a',{href:info.url,target:'_blank'}, info.doi)],
+    ['研究领域', info.field], ['关键词', info.keywords],
+    ['论文类型', info.paperType], ['研究对象', info.researchObject],
+    ['研究问题', info.researchQuestion], ['主要结论', info.mainConclusion],
+    ['适合人群', info.audience], ['证据等级', info.evidenceLevel]
+  ];
+  for (const [label, value] of items) {
+    grid.appendChild(el('div',{class:'info-item'}, [
+      el('div',{class:'info-label'}, label),
+      el('div',{class:'info-value'}, [value])
+    ]));
+  }
+  s.appendChild(grid);
+  main.appendChild(s);
+}
+
+// 渲染一句话总结
+function renderSummary() {
+  const s = section('summary','核心矛盾与论文答案','02');
+  s.appendChild(el('div',{class:'summary-hero'}, [el('div',{class:'label'}, '📌 论文一句话总结'), el('div',{class:'text', html: D.oneSentence})]));
+  // This paper is organized around a specific failure mode, not a generic model pipeline.
+  const hook = el('div',{class:'paper-hook'}, [
+    el('div',{class:'hook-card risk'}, [el('div',{class:'hook-kicker'},'Failure mode'), el('div',{class:'hook-title'},'Reward hacking'), el('p',{class:'hook-copy'},'生成器把预测器推到训练分布外，分数变高，候选却可能变得不可信。')]),
+    el('div',{class:'hook-card tension'}, [el('div',{class:'hook-kicker'},'Design tension'), el('div',{class:'hook-title'},'多个 AD 的交集'), el('p',{class:'hook-copy'},'阈值太松会放进离域分子，阈值太严又可能让多个属性没有可行交集。')]),
+    el('div',{class:'hook-card answer'}, [el('div',{class:'hook-kicker'},'DyRAMO answer'), el('div',{class:'hook-title'},'动态 ρ + DSS + BO'), el('p',{class:'hook-copy'},'把各属性可靠性阈值交给贝叶斯优化，用 DSS 同时评价可靠性和性质。')])
+  ]);
+  s.appendChild(hook);
+  const metrics = el('div',{class:'metric-grid'});
+  D.metrics.forEach(([v,l,sub]) => metrics.appendChild(el('div',{class:'metric-card'}, [el('div',{class:'metric-value'}, v), el('div',{class:'metric-label'}, l), el('div',{class:'metric-sub'}, sub)])));
+  s.appendChild(metrics);
+  const playground = el('div',{class:'playground', id:'threshold-playground'}, [
+    el('div',{class:'playground-head'}, [el('div',{}, [el('div',{class:'playground-title'},'阈值体验：为什么 ρ 不能一次性拍脑袋？'), el('p',{class:'hook-copy'},'拖动三个可靠性阈值，观察“可行空间”与“可靠性要求”的张力。')]), el('div',{class:'playground-note'},'交互示意：用于解释机制，不是论文新增实验数据。')]),
+    el('div',{class:'slider-grid'}, [
+      el('div',{class:'slider-item'}, [el('label',{}, [el('span',{},'EGFR 抑制活性 ρ₁'), el('output',{id:'rho-a'},'0.60')]), el('input',{id:'rho-a-input',type:'range',min:'0.10',max:'0.90',step:'0.01',value:'0.60'})]),
+      el('div',{class:'slider-item'}, [el('label',{}, [el('span',{},'代谢稳定性 ρ₂'), el('output',{id:'rho-b'},'0.40')]), el('input',{id:'rho-b-input',type:'range',min:'0.10',max:'0.90',step:'0.01',value:'0.40'})]),
+      el('div',{class:'slider-item'}, [el('label',{}, [el('span',{},'膜通透性 ρ₃'), el('output',{id:'rho-c'},'0.40')]), el('input',{id:'rho-c-input',type:'range',min:'0.10',max:'0.90',step:'0.01',value:'0.40'})])
+    ]),
+    el('div',{class:'ad-bars'}, [
+      el('div',{class:'ad-row'}, [el('span',{},'抑制活性 AD 宽度'), el('div',{class:'ad-track'},el('div',{class:'ad-fill',id:'ad-a'})), el('span',{id:'ad-a-label'},'40%')]),
+      el('div',{class:'ad-row'}, [el('span',{},'代谢稳定性 AD 宽度'), el('div',{class:'ad-track'},el('div',{class:'ad-fill',id:'ad-b'})), el('span',{id:'ad-b-label'},'60%')]),
+      el('div',{class:'ad-row'}, [el('span',{},'膜通透性 AD 宽度'), el('div',{class:'ad-track'},el('div',{class:'ad-fill',id:'ad-c'})), el('span',{id:'ad-c-label'},'60%')])
+    ]),
+    el('div',{class:'playground-readout'}, [
+      el('div',{class:'readout'},[el('div',{class:'readout-label'},'示意可靠性指数'),el('div',{class:'readout-value',id:'reliability-readout'},'0.46')]),
+      el('div',{class:'readout'},[el('div',{class:'readout-label'},'示意可行空间'),el('div',{class:'readout-value',id:'overlap-readout'},'14.4%')]),
+      el('div',{class:'readout'},[el('div',{class:'readout-label'},'固定候选 MTS 是否全通过'),el('div',{class:'readout-value',id:'candidate-readout'},'通过')])
+    ]),
+    el('div',{class:'playground-status',id:'playground-status'},'当前阈值较宽，候选更容易进入交集，但可靠性要求较低。论文用 DSS 把这两种需求放到同一个外层目标中。')
+  ]);
+  s.appendChild(playground);
+  main.appendChild(s);
+}
+
+function initDyramoPlayground() {
+  const ids = ['a','b','c'];
+  const fixedMTS = [0.66, 0.55, 0.43];
+  const update = () => {
+    const rho = ids.map(id => Number(document.getElementById('rho-'+id+'-input').value));
+    rho.forEach((v,i) => {
+      document.getElementById('rho-'+ids[i]).textContent = v.toFixed(2);
+      const width = (1-v)*100;
+      document.getElementById('ad-'+ids[i]).style.width = width+'%';
+      document.getElementById('ad-'+ids[i]+'-label').textContent = Math.round(width)+'%';
+    });
+    const reliability = Math.pow(rho[0]*rho[1]*rho[2],1/3);
+    const overlap = (1-rho[0])*(1-rho[1])*(1-rho[2]);
+    const pass = rho.every((v,i) => fixedMTS[i] >= v);
+    document.getElementById('reliability-readout').textContent = reliability.toFixed(2);
+    document.getElementById('overlap-readout').textContent = (overlap*100).toFixed(1)+'%';
+    document.getElementById('candidate-readout').textContent = pass ? '通过' : '不通过';
+    document.getElementById('candidate-readout').style.color = pass ? 'var(--accent)' : 'var(--danger)';
+    const status = document.getElementById('playground-status');
+    status.classList.toggle('warn', !pass || overlap < 0.08);
+    if (!pass) status.textContent = '当前阈值至少有一项高于示意候选的 MTS（0.66 / 0.55 / 0.43），该候选会被 Reward 门控置零。';
+    else if (overlap < 0.08) status.textContent = '当前阈值较严，三个 AD 的示意交集很窄；这正是论文把 ρ 交给 BO 搜索的原因。';
+    else if (reliability < 0.45) status.textContent = '当前阈值较宽，候选更容易进入交集，但可靠性要求较低。论文用 DSS 把这两种需求放到同一个外层目标中。';
+    else status.textContent = '当前阈值在示意候选上可行，且可靠性要求较高；实际最优组合仍由论文中的 DSS + BO 决定。';
+  };
+  ids.forEach(id => document.getElementById('rho-'+id+'-input').addEventListener('input', update));
+  update();
+}
+
+// 渲染整体流程
+function renderFlow() {
+  const s = section('flow','整体研究流程','03');
+  const chart = el('div',{class:'flow-chart'});
+  D.flow.forEach((step, i) => {
+    const cls = 'flow-step ' + (i>=5 && i<=7 ? 'result' : (i===8 ? 'limitation' : (i===3 ? 'highlight' : '')));
+    chart.appendChild(el('div',{class:cls}, [
+      el('div',{class:'step-num'}, step.num),
+      el('div',{class:'step-title'}, step.title),
+      el('div',{class:'step-desc'}, step.desc)
+    ]));
+    if (i < D.flow.length - 1) chart.appendChild(el('div',{class:'flow-arrow'}));
+  });
+  s.appendChild(chart);
+  main.appendChild(s);
+}
+
+// 渲染核心发现与问题
+function renderKeyFindings() {
+  const s = section('key-findings','核心发现与需警惕的问题','04');
+  // 三个最重要发现
+  s.appendChild(el('h3',{}, '✅ 三个最重要的发现'));
+  const fList = el('div',{class:'card card-success'});
+  D.keyFindings.forEach((f, i) => {
+    fList.appendChild(el('div',{style:'margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border-light)'}, [
+      el('strong',{}, (i+1)+'. '),
+      document.createTextNode(f)
+    ]));
+  });
+  s.appendChild(fList);
+  // 三个最需警惕的问题
+  s.appendChild(el('h3',{}, '⚠️ 三个最需要警惕的问题'));
+  const qList = el('div',{class:'card card-warning'});
+  D.keyQuestions.forEach((q, i) => {
+    qList.appendChild(el('div',{style:'margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border-light)'}, [
+      el('strong',{}, (i+1)+'. '),
+      document.createTextNode(q)
+    ]));
+  });
+  s.appendChild(qList);
+  main.appendChild(s);
+}
+
+// 渲染阅读建议
+function renderReadingGuide() {
+  const s = section('reading-guide','阅读建议','05');
+  const g = D.readingGuide;
+  const items = [
+    ['📖 应先看哪些部分', g.firstRead],
+    ['📊 哪些图表最关键', g.keyFigures],
+    ['🧩 哪些章节较难', g.hardSections],
+    ['🔍 哪些结论需要谨慎理解', g.cautiousConclusions]
+  ];
+  for (const [title, content] of items) {
+    s.appendChild(el('div',{class:'card'}, [
+      el('div',{class:'card-title'}, title),
+      el('p',{}, content)
+    ]));
+  }
+  main.appendChild(s);
+}
+
+// 渲染简明摘要
+function renderAbstracts() {
+  const s = section('abstracts','简明摘要','06');
+  D.abstracts.forEach(a => s.appendChild(el('div',{class:'collapsible'}, [el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [el('span',{}, a.title), el('span',{class:'arrow'}, '▶')]), el('div',{class:'collapsible-body'}, [el('p',{}, a.content)])])));
+  main.appendChild(s);
+}
+
+// 渲染分章节精读
+function renderSections() {
+  const s = section('sections','分章节精读','07');
+  const order = D.sectionOrder || Object.keys(D.sections);
+  order.forEach(key => {
+    const sec = D.sections[key];
+    const secEl = el('div',{class:'collapsible', id:'sec-'+key}, [el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [el('span',{}, sec.title+' '), sourceBadge(sec.source), el('span',{class:'arrow',style:'margin-left:auto'},'▶')]), el('div',{class:'collapsible-body'})]);
+    const body = secEl.querySelector('.collapsible-body');
+    body.appendChild(el('h4',{},'A. 原文主要内容')); body.appendChild(el('p',{},sec.content));
+    body.appendChild(el('h4',{},'B. 中英文对照'));
+    const table=el('div',{class:'table-wrapper'}), tbl=el('table'); tbl.appendChild(el('thead',{},el('tr',{},[el('th',{},'English original or key sentence'),el('th',{},'中文翻译解释')])));
+    const tbody=el('tbody'); sec.keySentences.forEach(x=>tbody.appendChild(el('tr',{},[el('td',{},x.en),el('td',{},x.zh)]))); tbl.appendChild(tbody); table.appendChild(tbl); body.appendChild(table);
+    [['C. 这一部分回答了什么问题？',sec.answers],['E. 逻辑关系',sec.logic],['F. 阅读重点',sec.focus],['G. 潜在问题',sec.issues]].forEach(([t,c])=>{body.appendChild(el('h4',{},t));body.appendChild(el('p',{},c));});
+    body.appendChild(el('h4',{},'D. 关键概念解释')); const ct=el('div',{class:'table-wrapper'}), ctbl=el('table'); ctbl.appendChild(el('thead',{},el('tr',{},[el('th',{},'术语英文'),el('th',{},'中文'),el('th',{},'解释')] ))); const cb=el('tbody'); sec.concepts.forEach(c=>cb.appendChild(el('tr',{},[el('td',{},c.en),el('td',{},c.zh),el('td',{},c.desc)]))); ctbl.appendChild(cb); ct.appendChild(ctbl); body.appendChild(ct); s.appendChild(secEl);
+  });
+  main.appendChild(s);
+}
+
+// 渲染方法详细解析
+function renderMethodDeep() {
+  const s = section('method-deep','方法详细解析','08');
+  const m = D.methodDeep;
+  const items = [
+    ['研究设计', m.design], ['研究对象', m.studyObject],
+    ['样本量', m.sampleSize], ['样本获取', m.sampleAcquisition],
+    ['对照组', m.controlGroup],
+    ['自变量/因变量/控制变量', JSON.stringify(m.variables, null, 2)],
+    ['实验流程', m.workflow], ['数据来源', m.dataSource],
+    ['数据预处理', m.preprocessing], ['统计/机器学习方法', m.statisticalMethods],
+    ['模型输入输出', JSON.stringify(m.modelIO, null, 2)],
+    ['评价指标', m.metrics], ['验证与消融', m.validation],
+    ['方法是否足以支持结论', m.methodSufficiency], ['潜在偏差', m.biases]
+  ];
+  for (const [label, content] of items) {
+    s.appendChild(el('div',{class:'collapsible'}, [
+      el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [
+        el('span',{}, label),
+        el('span',{class:'arrow', style:'margin-left:auto'}, '▶')
+      ]),
+      el('div',{class:'collapsible-body'}, [el('pre',{style:'white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.7'}, content)])
+    ]));
+  }
+  // 模型架构详情
+  s.appendChild(el('h3',{}, '🏗️ 模型架构详情'));
+  const arch = D.modelArchitecture;
+  const archItems = [
+    ['模型输入', arch.input], ['模型结构', arch.structure],
+    ['训练过程', arch.training], ['损失函数', arch.loss],
+    ['优化方法', arch.optimization], ['超参数', arch.hyperparameters],
+    ['基线模型', arch.baselines], ['评价指标', arch.metrics],
+    ['模型优点', arch.advantages], ['模型缺点', arch.disadvantages],
+    ['复现所需信息', arch.reproducibility]
+  ];
+  for (const [label, content] of archItems) {
+    s.appendChild(el('div',{class:'card'}, [
+      el('div',{class:'card-title'}, label),
+      el('p',{}, content)
+    ]));
+  }
+  main.appendChild(s);
+}
+
+// 渲染图表解析
+function renderFigures() {
+  const s = section('figures','图表逐一解析','09');
+  D.figures.forEach((fig, idx) => {
+    const figEl = el('div',{class:'collapsible', id:'fig'+(idx+1)}, [
+      el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [
+        el('span',{}, `Figure ${fig.id}：${fig.title}`),
+        sourceBadge(fig.page),
+        el('span',{class:'arrow', style:'margin-left:auto'}, '▶')
+      ]),
+      el('div',{class:'collapsible-body'})
+    ]);
+    const body = figEl.querySelector('.collapsible-body');
+    // 图展示了什么
+    body.appendChild(el('h4',{}, '📊 图展示了什么？'));
+    body.appendChild(el('p',{}, fig.description));
+    // 坐标轴
+    body.appendChild(el('h4',{}, '📐 横轴/纵轴/图例'));
+    body.appendChild(el('p',{}, el('strong',{},'坐标轴：'), fig.axes));
+    body.appendChild(el('p',{}, el('strong',{},'图例/颜色：'), fig.legend));
+    // 子图
+    body.appendChild(el('h4',{}, '🖼️ 子图解析'));
+    for (const [k, v] of Object.entries(fig.subplots)) {
+      body.appendChild(el('div',{class:'card', style:'margin-bottom:8px'}, [
+        el('div',{class:'card-title', style:'font-size:13px'}, '子图 ' + k),
+        el('p',{style:'font-size:13px;margin-bottom:0'}, v)
+      ]));
+    }
+    // 趋势/显著性/误差条
+    const analysis = [
+      ['📈 最重要的趋势', fig.trend],
+      ['📊 统计显著性', fig.significance],
+      ['📏 误差条', fig.errorBars],
+      ['✅ 数据如何支持结论', fig.support],
+      ['🔄 其他可能解释', fig.alternative]
+    ];
+    for (const [t, c] of analysis) {
+      body.appendChild(el('h4',{}, t));
+      body.appendChild(el('p',{}, c));
+    }
+    // 一句话总结
+    body.appendChild(el('div',{class:'card card-highlight'}, [
+      el('div',{class:'card-title'}, '💡 一句话总结'),
+      el('p',{style:'margin-bottom:0;font-weight:600'}, fig.summary)
+    ]));
+    // 中英文对照
+    body.appendChild(el('h4',{}, '🌐 中英文关键字段对照'));
+    const zt = el('div',{class:'table-wrapper'});
+    const ztbl = el('table');
+    ztbl.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'中文'), el('th',{},'English')])));
+    const ztbody = el('tbody');
+    for (const [zh, en] of Object.entries(fig.zhEn)) {
+      ztbody.appendChild(el('tr',{}, [el('td',{}, zh), el('td',{}, en)]));
+    }
+    ztbl.appendChild(ztbody);
+    zt.appendChild(ztbl);
+    body.appendChild(zt);
+    s.appendChild(figEl);
+  });
+  main.appendChild(s);
+}
+
+// 渲染公式解析
+function renderFormulas() {
+  const s = section('formulas','公式解析','10');
+  D.formulas.forEach((f, idx) => {
+    const fEl = el('div',{class:'collapsible open'}, [
+      el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [
+        el('span',{}, `公式 (${f.id})：${f.title}`),
+        sourceBadge(f.source),
+        el('span',{class:'arrow', style:'margin-left:auto'}, '▶')
+      ]),
+      el('div',{class:'collapsible-body'})
+    ]);
+    const body = fEl.querySelector('.collapsible-body');
+    // 公式
+    const fb = el('div',{class:'formula-block'});
+    fb.appendChild(el('div',{class:'formula-label'}, '公式 (' + f.id + ')'));
+    fb.appendChild(el('div',{html: '$$' + f.latex + '$$'}));
+    // 变量解释
+    const varDiv = el('div',{class:'formula-explanation'});
+    varDiv.appendChild(el('strong',{}, '变量解释：'));
+    const varList = el('div',{class:'var-list'});
+    for (const v of f.variables) {
+      varList.appendChild(el('div',{class:'var-item'}, [
+        el('span',{class:'var-symbol'}, v.symbol),
+        el('span',{}, v.desc)
+      ]));
+    }
+    varDiv.appendChild(varList);
+    // 直觉含义
+    varDiv.appendChild(el('br'));
+    varDiv.appendChild(el('strong',{}, '直觉含义：'));
+    varDiv.appendChild(el('p',{style:'margin-top:4px'}, f.intuition));
+    // 在论文中的作用
+    varDiv.appendChild(el('strong',{}, '在论文中的作用：'));
+    varDiv.appendChild(el('p',{style:'margin-top:4px'}, f.role));
+    // 简单例子
+    varDiv.appendChild(el('strong',{}, '简单计算示例：'));
+    varDiv.appendChild(el('p',{style:'margin-top:4px'}, f.example));
+    fb.appendChild(varDiv);
+    body.appendChild(fb);
+    s.appendChild(fEl);
+  });
+  main.appendChild(s);
+}
+
+// 渲染核心结论
+function renderConclusions() {
+  const s = section('conclusions','核心结论三层提炼','11');
+  const c = D.conclusions;
+  // 明确证明
+  s.appendChild(el('h3',{}, '✅ 第一层：论文明确证明或支持的内容'));
+  const t1 = el('div',{class:'table-wrapper'});
+  const tbl1 = el('table');
+  tbl1.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'结论'), el('th',{},'证据来源'), el('th',{},'证据强度'), el('th',{},'替代解释')])));
+  const tb1 = el('tbody');
+  for (const item of c.proven) {
+    tb1.appendChild(el('tr',{}, [
+      el('td',{}, item.conclusion),
+      el('td',{}, item.evidence),
+      el('td',{}, el('span',{class:'tag tag-evidence'}, item.strength)),
+      el('td',{}, item.alternative)
+    ]));
+  }
+  tbl1.appendChild(tb1); t1.appendChild(tbl1); s.appendChild(t1);
+  // 推测讨论
+  s.appendChild(el('h3',{}, '🤔 第二层：论文推测或讨论的内容'));
+  const t2 = el('div',{class:'table-wrapper'});
+  const tbl2 = el('table');
+  tbl2.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'结论'), el('th',{},'证据来源'), el('th',{},'证据强度'), el('th',{},'备注')])));
+  const tb2 = el('tbody');
+  for (const item of c.speculated) {
+    tb2.appendChild(el('tr',{}, [
+      el('td',{}, item.conclusion),
+      el('td',{}, item.evidence),
+      el('td',{}, el('span',{class:'tag tag-inference'}, item.strength)),
+      el('td',{}, item.note)
+    ]));
+  }
+  tbl2.appendChild(tb2); t2.appendChild(tbl2); s.appendChild(t2);
+  // 未证明
+  s.appendChild(el('h3',{}, '❌ 第三层：论文没有证明的内容'));
+  const t3 = el('div',{class:'table-wrapper'});
+  const tbl3 = el('table');
+  tbl3.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'未证明的结论'), el('th',{},'类型'), el('th',{},'说明')])));
+  const tb3 = el('tbody');
+  for (const item of c.notProven) {
+    tb3.appendChild(el('tr',{}, [
+      el('td',{}, item.conclusion),
+      el('td',{}, el('span',{class:'tag tag-evaluation'}, item.type)),
+      el('td',{}, item.note)
+    ]));
+  }
+  tbl3.appendChild(tb3); t3.appendChild(tbl3); s.appendChild(t3);
+  main.appendChild(s);
+}
+
+// 渲染创新点
+function renderInnovation() {
+  const s = section('innovation','创新点分析','12');
+  const inv = D.innovation;
+  const dims = [
+    ['研究问题创新', inv.problem], ['理论创新', inv.theory],
+    ['方法创新', inv.method], ['数据创新', inv.data],
+    ['技术创新', inv.technology], ['实验设计创新', inv.experiment],
+    ['应用价值创新', inv.application]
+  ];
+  for (const [label, data] of dims) {
+    s.appendChild(el('div',{class:'card'}, [
+      el('div',{class:'card-title'}, label + (data.genuine ? ' ✅' : ' ⚠️')),
+      el('p',{}, data.content),
+      el('p',{style:'margin-bottom:0;font-size:13px;color:var(--text-muted)'}, '📝 ' + data.note)
+    ]));
+  }
+  s.appendChild(el('h3',{}, '与已有研究相比的新贡献'));
+  s.appendChild(el('div',{class:'card card-highlight'}, [el('p',{}, inv.comparison)]));
+  s.appendChild(el('h3',{}, '是否存在过度宣传？'));
+  s.appendChild(el('div',{class:'card card-warning'}, [el('p',{}, inv.overhype)]));
+  main.appendChild(s);
+}
+
+// 渲染局限性与批判
+function renderLimitations() {
+  const s = section('limitations','局限性与批判性评价','13');
+  const lim = D.limitations;
+  const critique = D.critique;
+  // 各方面局限
+  const cats = [
+    ['研究设计', lim.studyDesign], ['数据', lim.data],
+    ['方法', lim.method], ['结果', lim.results],
+    ['外部有效性', lim.externalValidity]
+  ];
+  for (const [label, data] of cats) {
+    const catEl = el('div',{class:'collapsible'}, [
+      el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [
+        el('span',{}, '🔍 ' + label),
+        el('span',{class:'arrow', style:'margin-left:auto'}, '▶')
+      ]),
+      el('div',{class:'collapsible-body'})
+    ]);
+    const body = catEl.querySelector('.collapsible-body');
+    for (const [k, v] of Object.entries(data)) {
+      body.appendChild(el('div',{style:'margin-bottom:10px'}, [
+        el('strong',{style:'color:var(--primary)'}, k + '：'),
+        document.createTextNode(v)
+      ]));
+    }
+    s.appendChild(catEl);
+  }
+  // 论文优缺点
+  s.appendChild(el('h3',{}, '📋 论文优点'));
+  const ul1 = el('ul');
+  critique.strengths.forEach(x => ul1.appendChild(el('li',{}, x)));
+  s.appendChild(ul1);
+  s.appendChild(el('h3',{}, '⚠️ 论文缺点'));
+  const ul2 = el('ul');
+  critique.weaknesses.forEach(x => ul2.appendChild(el('li',{}, x)));
+  s.appendChild(ul2);
+  // 最关键三个问题
+  s.appendChild(el('h3',{}, '🎯 最关键的三个问题'));
+  critique.topThreeQuestions.forEach((q, i) => {
+    s.appendChild(el('div',{class:'card card-danger'}, [
+      el('div',{class:'card-title'}, '问题 ' + (i+1)),
+      el('p',{style:'margin-bottom:0'}, q)
+    ]));
+  });
+  // 未来方向
+  s.appendChild(el('h3',{}, '🚀 最值得后续研究的方向'));
+  const ul3 = el('ul');
+  critique.futureDirections.forEach(x => ul3.appendChild(el('li',{}, x)));
+  s.appendChild(ul3);
+  // 综合评价
+  s.appendChild(el('div',{class:'summary-hero'}, [
+    el('div',{class:'label'}, '🏆 综合评价'),
+    el('div',{class:'text', html: '评价等级：<strong>' + critique.overallRating + '</strong>'}),
+    el('p',{style:'margin-top:12px;font-size:14px;opacity:0.9'}, critique.ratingReason)
+  ]));
+  main.appendChild(s);
+}
+
+// 渲染复现指南
+function renderReproducibility() {
+  const s = section('reproducibility','复现指南','14');
+  const r = D.reproducibility;
+  // 已公开
+  s.appendChild(el('h3',{}, '✅ 已公开且可以直接获得'));
+  const t1 = el('div',{class:'table-wrapper'});
+  const tbl1 = el('table');
+  tbl1.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'项目'), el('th',{},'详情'), el('th',{},'来源')])));
+  const tb1 = el('tbody');
+  for (const item of r.available) {
+    tb1.appendChild(el('tr',{}, [el('td',{}, item.item), el('td',{}, item.detail), el('td',{}, item.source)]));
+  }
+  tbl1.appendChild(tb1); t1.appendChild(tbl1); s.appendChild(t1);
+  // 部分说明
+  s.appendChild(el('h3',{}, '⚠️ 论文中提到但没有充分说明'));
+  const t2 = el('div',{class:'table-wrapper'});
+  const tbl2 = el('table');
+  tbl2.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'项目'), el('th',{},'已说明的内容'), el('th',{},'缺失的信息')])));
+  const tb2 = el('tbody');
+  for (const item of r.partiallyDescribed) {
+    tb2.appendChild(el('tr',{}, [el('td',{}, item.item), el('td',{}, item.detail), el('td',{}, item.missing)]));
+  }
+  tbl2.appendChild(tb2); t2.appendChild(tbl2); s.appendChild(t2);
+  // 完全没有提供
+  s.appendChild(el('h3',{}, '❌ 论文完全没有提供'));
+  const t3 = el('div',{class:'table-wrapper'});
+  const tbl3 = el('table');
+  tbl3.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'项目'), el('th',{},'详情'), el('th',{},'影响')])));
+  const tb3 = el('tbody');
+  for (const item of r.notProvided) {
+    tb3.appendChild(el('tr',{}, [el('td',{}, item.item), el('td',{}, item.detail), el('td',{}, item.impact)]));
+  }
+  tbl3.appendChild(tb3); t3.appendChild(tbl3); s.appendChild(t3);
+  // 困难
+  s.appendChild(el('h3',{}, '🔧 复现时可能遇到的困难'));
+  const ul = el('ul');
+  r.difficulties.forEach(x => ul.appendChild(el('li',{}, x)));
+  s.appendChild(ul);
+  main.appendChild(s);
+}
+
+// 渲染术语表
+function renderGlossary() {
+  const s = section('glossary','中英文对照术语表','15');
+  const t = el('div',{class:'table-wrapper'});
+  const tbl = el('table');
+  tbl.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'中文术语'), el('th',{},'英文术语'), el('th',{},'缩写'), el('th',{},'本文中的含义'), el('th',{},'通俗解释')])));
+  const tb = el('tbody');
+  for (const g of D.glossary) {
+    tb.appendChild(el('tr',{}, [
+      el('td',{}, g.zh), el('td',{}, g.en), el('td',{}, g.abbr),
+      el('td',{}, g.meaning), el('td',{}, g.plain)
+    ]));
+  }
+  tbl.appendChild(tb); t.appendChild(tbl); s.appendChild(t);
+  main.appendChild(s);
+}
+
+// 渲染参考文献
+function renderReferences() {
+  const s = section('references','参考文献说明','16');
+  const r = D.references;
+  s.appendChild(el('p',{}, r.total));
+  s.appendChild(el('h3',{}, '关键参考文献'));
+  const t = el('div',{class:'table-wrapper'});
+  const tbl = el('table');
+  tbl.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'编号'), el('th',{},'引用'), el('th',{},'相关主题')])));
+  const tb = el('tbody');
+  for (const ref of r.key) {
+    tb.appendChild(el('tr',{}, [el('td',{}, '['+ref.num+']'), el('td',{}, ref.citation), el('td',{}, ref.topic)]));
+  }
+  tbl.appendChild(tb); t.appendChild(tbl); s.appendChild(t);
+  s.appendChild(el('div',{class:'card card-warning'}, [el('p',{style:'margin-bottom:0'}, '📝 ' + r.note)]));
+  main.appendChild(s);
+}
+
+// 渲染导师汇报版
+function renderAdvisorReport() {
+  const s = section('advisor-report','导师汇报版总结','17');
+  const a = D.advisorReport;
+  const items = [
+    ['🎯 一句话电梯演讲', a.elevator],
+    ['📚 研究背景', a.background],
+    ['🔬 方法', a.method],
+    ['📊 结果', a.results],
+    ['💡 意义', a.significance],
+    ['⚠️ 局限', a.limitations],
+    ['✅ 建议', a.recommendation]
+  ];
+  for (const [title, content] of items) {
+    s.appendChild(el('div',{class:'card'}, [
+      el('div',{class:'card-title'}, title),
+      el('p',{style:'margin-bottom:0'}, content)
+    ]));
+  }
+  main.appendChild(s);
+}
+
+// 渲染答辩问题
+function renderDefenseQA() {
+  const s = section('defense-qa','答辩可能提问及参考回答','18');
+  D.defenseQA.forEach((qa, i) => {
+    s.appendChild(el('div',{class:'collapsible'}, [
+      el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [
+        el('span',{}, 'Q' + (i+1) + ': ' + qa.question),
+        el('span',{class:'arrow', style:'margin-left:auto'}, '▶')
+      ]),
+      el('div',{class:'collapsible-body'}, [
+        el('div',{class:'card card-success'}, [
+          el('div',{class:'card-title'}, '💡 参考回答'),
+          el('p',{style:'margin-bottom:0'}, qa.answer)
+        ])
+      ])
+    ]));
+  });
+  main.appendChild(s);
+}
+
+// 渲染右侧栏
+function renderRightSidebar() {
+  // 关键结论
+  const kc = document.getElementById('keyConclusions');
+  D.keyFindings.forEach((f, i) => {
+    const card = el('div',{class:'key-conclusion-card', title:'点击复制'}, [
+      el('button',{class:'copy-btn', onclick:function(e){e.stopPropagation();copyText(f);}}, '📋'),
+      document.createTextNode(f.substring(0, 80) + (f.length > 80 ? '...' : ''))
+    ]);
+    card.addEventListener('click', () => copyText(f));
+    kc.appendChild(card);
+  });
+  // 核心术语
+  const kt = document.getElementById('keyTerms');
+  const keyTerms = D.glossary.slice(0, 8);
+  for (const t of keyTerms) {
+    kt.appendChild(el('div',{class:'term-item'}, [
+      el('div',{class:'term-en'}, t.en + (t.abbr !== '—' ? ' (' + t.abbr + ')' : '')),
+      el('div',{class:'term-zh'}, t.zh)
+    ]));
+  }
+  // 需警惕的问题
+  const kq = document.getElementById('keyQuestions');
+  D.keyQuestions.forEach(q => {
+    kq.appendChild(el('div',{class:'question-item'}, q.substring(0, 100) + (q.length > 100 ? '...' : '')));
+  });
+}
+
+// ========== 交互功能 ==========
+
+// 复制文本
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('已复制到剪贴板')).catch(() => showToast('复制失败'));
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// 主题切换
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('themeBtn').textContent = isDark ? '🌙' : '☀️';
+  localStorage.setItem('dyramo-theme', isDark ? 'light' : 'dark');
+}
+// 语言切换（简化版：切换body的data-lang属性）
+function toggleLang() {
+  const html = document.documentElement;
+  const cur = html.getAttribute('data-lang') || 'zh';
+  const next = cur === 'zh' ? 'en' : 'zh';
+  html.setAttribute('data-lang', next);
+  document.getElementById('langBtn').textContent = next === 'zh' ? '中/EN' : 'EN/中';
+  showToast(next === 'zh' ? '已切换到中文' : 'Switched to English (content primarily in Chinese)');
+}
+
+// 搜索
+let searchIndex = [];
+function buildSearchIndex() {
+  const sections = document.querySelectorAll('.content-section, .collapsible');
+  sections.forEach(sec => {
+    const text = sec.textContent.substring(0, 500);
+    const title = sec.querySelector('h2, h3, .collapsible-header, .card-title');
+    searchIndex.push({
+      id: sec.id || '',
+      title: title ? title.textContent.substring(0, 60) : sec.textContent.substring(0, 60),
+      text: text,
+      element: sec
+    });
+  });
+}
+function toggleSearch() {
+  document.getElementById('searchBox').classList.toggle('active');
+  const input = document.getElementById('searchInput');
+  if (document.getElementById('searchBox').classList.contains('active')) {
+    input.focus();
+  } else {
+    input.value = '';
+    document.getElementById('searchResults').classList.remove('show');
+  }
+}
+function doSearch(query) {
+  const results = document.getElementById('searchResults');
+  if (!query.trim()) { results.classList.remove('show'); return; }
+  const q = query.toLowerCase();
+  const matches = searchIndex.filter(item =>
+    item.title.toLowerCase().includes(q) || item.text.toLowerCase().includes(q)
+  ).slice(0, 10);
+  if (matches.length === 0) {
+    results.innerHTML = '<div class="search-result-item"><div class="sr-title">未找到结果</div></div>';
+  } else {
+    results.innerHTML = '';
+    matches.forEach(m => {
+      const snippet = m.text.replace(new RegExp(query, 'gi'), '<mark>$&</mark>').substring(0, 150);
+      const item = el('div',{class:'search-result-item'}, [
+        el('div',{class:'sr-title'}, m.title),
+        el('div',{class:'sr-snippet', html: snippet})
+      ]);
+      item.addEventListener('click', () => {
+        m.element.scrollIntoView({behavior:'smooth', block:'start'});
+        if (m.element.classList.contains('collapsible')) m.element.classList.add('open');
+        results.classList.remove('show');
+      });
+      results.appendChild(item);
+    });
+  }
+  results.classList.add('show');
+}
+
+// 阅读进度条
+function updateProgress() {
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+  document.getElementById('progress-bar').style.width = progress + '%';
+  // 更新目录高亮
+  const sections = document.querySelectorAll('.content-section, .collapsible[id]');
+  let current = '';
+  sections.forEach(sec => {
+    const rect = sec.getBoundingClientRect();
+    if (rect.top <= 150) current = sec.id;
+  });
+  document.querySelectorAll('.toc-item').forEach(item => {
+    item.classList.remove('active');
+    if (item.getAttribute('href') === '#' + current) item.classList.add('active');
+  });
+}
+
+// 移动端侧边栏
+function toggleSidebar() {
+  document.getElementById('sidebarLeft').classList.toggle('show');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+
+// 图表模态框
+function openFigureModal(src) {
+  document.getElementById('figureModalImg').src = src;
+  document.getElementById('figureModal').classList.add('show');
+}
+function closeFigureModal() {
+  document.getElementById('figureModal').classList.remove('show');
+}
+
+// 导出Markdown
+function exportMarkdown() {
+  let md = '# DyRAMO 论文精读笔记\n\n';
+  md += '## 论文信息\n\n';
+  for (const [k, v] of Object.entries(D.info)) {
+    md += `- **${k}**: ${v}\n`;
+  }
+  md += '\n## 一句话总结\n\n' + D.oneSentence + '\n\n';
+  md += '## 核心发现\n\n';
+  D.keyFindings.forEach((f, i) => md += `${i+1}. ${f}\n`);
+  md += '\n## 需警惕的问题\n\n';
+  D.keyQuestions.forEach((q, i) => md += `${i+1}. ${q}\n`);
+  md += '\n## 分章节精读\n\n';
+  for (const [key, sec] of Object.entries(D.sections)) {
+    md += `### ${sec.title}\n\n${sec.content}\n\n`;
+  }
+  md += '\n## 核心结论\n\n### 明确证明\n\n';
+  D.conclusions.proven.forEach(c => md += `- ${c.conclusion} (${c.evidence})\n`);
+  md += '\n### 推测讨论\n\n';
+  D.conclusions.speculated.forEach(c => md += `- ${c.conclusion} (${c.evidence})\n`);
+  md += '\n### 未证明\n\n';
+  D.conclusions.notProven.forEach(c => md += `- ${c.conclusion}: ${c.note}\n`);
+  md += '\n## 综合评价: ' + D.critique.overallRating + '\n\n' + D.critique.ratingReason + '\n';
+  const blob = new Blob([md], {type:'text/markdown'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'DyRAMO_论文精读笔记.md';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Markdown已导出');
+}
+
+// ========== 初始化 ==========
+function init() {
+  // 恢复主题
+  const savedTheme = localStorage.getItem('dyramo-theme');
+  if (savedTheme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.getElementById('themeBtn').textContent = '☀️';
+  }
+  // 渲染所有内容
+  renderOverview();
+  renderSummary();
+  initDyramoPlayground();
+  renderFlow();
+  renderKeyFindings();
+  renderReadingGuide();
+  renderAbstracts();
+  renderSections();
+  renderMethodDeep();
+  renderFigures();
+  renderFormulas();
+  renderConclusions();
+  renderInnovation();
+  renderLimitations();
+  renderReproducibility();
+  renderGlossary();
+  renderReferences();
+  renderAdvisorReport();
+  renderDefenseQA();
+  renderRightSidebar();
+  // 构建搜索索引
+  setTimeout(buildSearchIndex, 500);
+  // 事件监听
+  window.addEventListener('scroll', updateProgress);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.search-box')) {
+      document.getElementById('searchResults').classList.remove('show');
+    }
+  });
+  // MathJax排版
+  if (window.MathJax) {
+    MathJax.typesetPromise();
+  }
+  updateProgress();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

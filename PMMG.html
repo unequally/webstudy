@@ -1,0 +1,2403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMMG 论文精读 | Pareto + MCTS molecular generation</title>
+<!-- MathJax for LaTeX formulas -->
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+/* ========== CSS Variables & Theme ========== */
+:root {
+  --primary: #1a56db;
+  --primary-light: #e8effc;
+  --primary-dark: #1e429f;
+  --accent: #0e9f6e;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --bg: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --text: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+  --radius: 8px;
+  --radius-md: 12px;
+  --sidebar-width: 260px;
+  --right-sidebar-width: 280px;
+  --topbar-height: 60px;
+  --progress-height: 3px;
+}
+
+[data-theme="dark"] {
+  --primary: #60a5fa;
+  --primary-light: #1e3a5f;
+  --primary-dark: #3b82f6;
+  --accent: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --bg: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --text: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --border: #334155;
+  --border-light: #1e293b;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.5);
+}
+
+/* ========== Reset & Base ========== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topbar-height) + var(--progress-height) + 20px); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.75;
+  font-size: 15px;
+  transition: background 0.3s, color 0.3s;
+}
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; height: auto; }
+
+/* ========== Reading Progress Bar ========== */
+#progress-bar {
+  position: fixed; top: 0; left: 0; height: var(--progress-height);
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  width: 0%; z-index: 10000; transition: width 0.1s;
+}
+
+/* ========== Top Bar ========== */
+.topbar {
+  position: fixed; top: var(--progress-height); left: 0; right: 0; height: var(--topbar-height);
+  background: var(--bg); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 20px; z-index: 999;
+  box-shadow: var(--shadow);
+}
+.topbar-title {
+  font-size: 15px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+}
+.topbar-title span { color: var(--primary); }
+.topbar-actions { display: flex; gap: 8px; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text-secondary); font-size: 13px;
+  cursor: pointer; transition: all 0.2s; font-family: inherit;
+}
+.btn:hover { background: var(--bg-tertiary); color: var(--text); border-color: var(--primary); }
+.btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+.btn-primary:hover { background: var(--primary-dark); color: white; }
+.btn-icon { padding: 6px 10px; font-size: 16px; }
+
+/* Search box */
+.search-box {
+  position: relative; display: flex; align-items: center;
+}
+.search-box input {
+  width: 0; padding: 6px 0; border: none; background: transparent;
+  color: var(--text); font-size: 13px; font-family: inherit;
+  transition: width 0.3s, padding 0.3s; outline: none;
+}
+.search-box.active input { width: 200px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); }
+.search-results {
+  position: absolute; top: 100%; right: 0; width: 360px; max-height: 400px;
+  overflow-y: auto; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg); z-index: 1000;
+  display: none;
+}
+.search-results.show { display: block; }
+.search-result-item {
+  padding: 10px 14px; border-bottom: 1px solid var(--border-light); cursor: pointer;
+  transition: background 0.15s;
+}
+.search-result-item:hover { background: var(--bg-secondary); }
+.search-result-item .sr-title { font-size: 13px; font-weight: 600; color: var(--primary); margin-bottom: 2px; }
+.search-result-item .sr-snippet { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.search-result-item .sr-snippet mark { background: #fef08a; color: var(--text); padding: 0 2px; border-radius: 2px; }
+[data-theme="dark"] .search-result-item .sr-snippet mark { background: #854d0e; color: #fef08a; }
+
+/* ========== Layout ========== */
+.layout {
+  display: flex; margin-top: calc(var(--topbar-height) + var(--progress-height));
+  min-height: calc(100vh - var(--topbar-height) - var(--progress-height));
+}
+
+/* Left Sidebar - TOC */
+.sidebar-left {
+  width: var(--sidebar-width); position: fixed; top: calc(var(--topbar-height) + var(--progress-height));
+  bottom: 0; left: 0; overflow-y: auto; background: var(--bg-secondary);
+  border-right: 1px solid var(--border); padding: 20px 0; z-index: 100;
+  transition: transform 0.3s;
+}
+.sidebar-left::-webkit-scrollbar { width: 4px; }
+.sidebar-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.toc-section { padding: 0 16px; margin-bottom: 8px; }
+.toc-section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-muted); letter-spacing: 0.5px; padding: 8px 12px;
+}
+.toc-item {
+  display: block; padding: 6px 12px; font-size: 13px; color: var(--text-secondary);
+  border-radius: 6px; cursor: pointer; transition: all 0.15s; line-height: 1.4;
+}
+.toc-item:hover { background: var(--bg-tertiary); color: var(--text); text-decoration: none; }
+.toc-item.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.toc-item.toc-l2 { padding-left: 24px; font-size: 12px; }
+.toc-item.toc-l3 { padding-left: 36px; font-size: 12px; color: var(--text-muted); }
+
+/* Main Content */
+.main-content {
+  flex: 1; margin-left: var(--sidebar-width); margin-right: var(--right-sidebar-width);
+  padding: 32px 40px 80px; max-width: 900px;
+}
+
+/* Right Sidebar */
+.sidebar-right {
+  width: var(--right-sidebar-width); position: fixed; top: calc(var(--topbar-height) + var(--progress-height));
+  bottom: 0; right: 0; overflow-y: auto; background: var(--bg-secondary);
+  border-left: 1px solid var(--border); padding: 20px 16px; z-index: 100;
+}
+.sidebar-right::-webkit-scrollbar { width: 4px; }
+.sidebar-right::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.right-widget { margin-bottom: 24px; }
+.right-widget-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 10px;
+  padding-bottom: 6px; border-bottom: 2px solid var(--primary);
+}
+.key-conclusion-card {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 12px; margin-bottom: 8px; font-size: 12px; line-height: 1.5;
+  color: var(--text-secondary); position: relative; cursor: pointer; transition: all 0.2s;
+}
+.key-conclusion-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md); }
+.key-conclusion-card .copy-btn {
+  position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity 0.2s;
+  background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;
+}
+.key-conclusion-card:hover .copy-btn { opacity: 1; }
+.term-item {
+  padding: 6px 0; border-bottom: 1px solid var(--border-light); font-size: 12px;
+}
+.term-item .term-en { font-weight: 600; color: var(--primary); }
+.term-item .term-zh { color: var(--text-secondary); margin-top: 2px; }
+.question-item {
+  padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: 12px;
+  color: var(--text-secondary); line-height: 1.5;
+}
+.question-item::before { content: "❓ "; color: var(--warning); }
+
+/* ========== Content Typography ========== */
+.content-section { margin-bottom: 48px; }
+.content-section h2 {
+  font-size: 24px; font-weight: 700; color: var(--text); margin-bottom: 20px;
+  padding-bottom: 12px; border-bottom: 3px solid var(--primary);
+  display: flex; align-items: center; gap: 10px;
+}
+.content-section h2 .section-num {
+  background: var(--primary); color: white; font-size: 14px;
+  padding: 2px 10px; border-radius: 4px; font-weight: 600;
+}
+.content-section h3 {
+  font-size: 19px; font-weight: 600; color: var(--text); margin: 28px 0 14px;
+  padding-left: 12px; border-left: 4px solid var(--primary);
+}
+.content-section h4 {
+  font-size: 16px; font-weight: 600; color: var(--text); margin: 20px 0 10px;
+}
+.content-section p { margin-bottom: 14px; color: var(--text-secondary); }
+.content-section ul, .content-section ol { margin: 12px 0 16px 24px; color: var(--text-secondary); }
+.content-section li { margin-bottom: 6px; }
+.content-section strong { color: var(--text); font-weight: 600; }
+
+/* ========== Cards & Callouts ========== */
+.card {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 20px; margin: 16px 0;
+}
+.card-highlight {
+  background: linear-gradient(135deg, var(--primary-light), var(--bg-secondary));
+  border-left: 4px solid var(--primary);
+}
+.card-success { border-left: 4px solid var(--accent); }
+.card-warning { border-left: 4px solid var(--warning); background: #fffbeb; }
+[data-theme="dark"] .card-warning { background: #422006; }
+.card-danger { border-left: 4px solid var(--danger); background: #fef2f2; }
+[data-theme="dark"] .card-danger { background: #450a0a; }
+.card-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.card-title .icon { margin-right: 8px; }
+
+/* One-sentence summary */
+.summary-hero {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white; border-radius: var(--radius-md); padding: 28px 32px; margin: 20px 0;
+  box-shadow: var(--shadow-lg);
+}
+.summary-hero .label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 8px; }
+.summary-hero .text { font-size: 17px; line-height: 1.8; font-weight: 500; }
+.summary-hero .text strong { color: #fef08a; }
+
+/* Info grid */
+.info-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px; margin: 16px 0;
+}
+.info-item {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 16px;
+}
+.info-item .info-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+.info-item .info-value { font-size: 14px; color: var(--text); font-weight: 500; line-height: 1.5; }
+
+/* ========== PMMG-specific visual language ========== */
+.paper-hook { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:18px 0 22px; }
+.hook-card { border:1px solid var(--border); border-radius:var(--radius-md); padding:18px; background:var(--bg-secondary); position:relative; overflow:hidden; }
+.hook-card::before { content:''; position:absolute; inset:0 auto 0 0; width:4px; background:var(--primary); }
+.hook-card.risk::before { background:var(--danger); }
+.hook-card.tension::before { background:var(--warning); }
+.hook-card.answer::before { background:var(--accent); }
+.hook-kicker { font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); margin-bottom:5px; }
+.hook-title { font-size:16px; font-weight:750; color:var(--text); margin-bottom:6px; }
+.hook-copy { font-size:13px; line-height:1.65; color:var(--text-secondary); margin:0; }
+.hook-arrow { display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:20px; }
+.playground { border:1px solid var(--border); border-radius:var(--radius-md); background:linear-gradient(135deg,var(--bg-secondary),var(--bg)); padding:20px; margin:20px 0; }
+.playground-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.playground-title { font-size:17px; font-weight:750; color:var(--text); }
+.playground-note { font-size:12px; color:var(--text-muted); max-width:360px; text-align:right; }
+.slider-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.slider-item label { display:flex; justify-content:space-between; font-size:12px; color:var(--text-secondary); margin-bottom:5px; }
+.slider-item output { font-weight:800; color:var(--primary); }
+.slider-item input { width:100%; accent-color:var(--primary); }
+.ad-bars { display:grid; gap:8px; margin:16px 0; }
+.ad-row { display:grid; grid-template-columns:115px 1fr 54px; gap:9px; align-items:center; font-size:12px; color:var(--text-secondary); }
+.ad-track { height:10px; border-radius:999px; background:var(--border-light); overflow:hidden; }
+.ad-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,var(--primary),var(--accent)); transition:width .2s ease; }
+.playground-readout { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:12px; }
+.readout { border-radius:var(--radius); background:var(--bg); border:1px solid var(--border); padding:10px; }
+.readout-label { font-size:11px; color:var(--text-muted); }
+.readout-value { font-size:18px; font-weight:800; color:var(--text); margin-top:2px; }
+.playground-status { margin-top:14px; padding:10px 12px; border-radius:var(--radius); font-size:13px; line-height:1.55; background:var(--primary-light); color:var(--text-secondary); }
+.playground-status.warn { background:#fff7ed; color:#9a3412; }
+[data-theme="dark"] .playground-status.warn { background:#431407; color:#fed7aa; }
+@media (max-width:760px) { .paper-hook,.slider-grid,.playground-readout { grid-template-columns:1fr; } .hook-arrow { transform:rotate(90deg); } .playground-head { display:block; } .playground-note { text-align:left; margin-top:6px; } }
+
+.figure-shot { margin:16px 0; border:1px solid var(--border); border-radius:var(--radius-md); background:#fff; padding:10px; cursor:zoom-in; }
+.figure-shot img { display:block; width:100%; max-height:760px; object-fit:contain; margin:0 auto; }
+.figure-shot-note { font-size:11px; color:#64748b; text-align:center; padding-top:6px; }
+.caption-en,.caption-zh { font-size:13px; line-height:1.75; padding:12px 14px; border-left:3px solid var(--border); background:var(--bg-secondary); }
+.caption-zh { border-left-color:var(--primary); }
+
+/* ========== Tables ========== */
+.table-wrapper { overflow-x: auto; margin: 16px 0; border-radius: var(--radius); border: 1px solid var(--border); }
+table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+thead { background: var(--primary); color: white; }
+th { padding: 10px 14px; text-align: left; font-weight: 600; white-space: nowrap; }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border-light); color: var(--text-secondary); vertical-align: top; }
+tbody tr:hover { background: var(--bg-secondary); }
+tbody tr:last-child td { border-bottom: none; }
+.tag {
+  display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+}
+.tag-evidence { background: #dcfce7; color: #166534; }
+.tag-inference { background: #fef3c7; color: #92400e; }
+.tag-evaluation { background: #fee2e2; color: #991b1b; }
+[data-theme="dark"] .tag-evidence { background: #14532d; color: #86efac; }
+[data-theme="dark"] .tag-inference { background: #713f12; color: #fde047; }
+[data-theme="dark"] .tag-evaluation { background: #7f1d1d; color: #fca5a5; }
+
+/* ========== Tabs (Evidence / Explanation / Evaluation) ========== */
+.tab-container { margin: 16px 0; }
+.tab-buttons { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 0; }
+.tab-btn {
+  padding: 8px 18px; background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: all 0.2s; margin-bottom: -2px;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+.tab-btn .tab-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.tab-btn[data-tab="evidence"] .tab-dot { background: var(--accent); }
+.tab-btn[data-tab="explanation"] .tab-dot { background: var(--primary); }
+.tab-btn[data-tab="evaluation"] .tab-dot { background: var(--danger); }
+.tab-content { display: none; padding: 16px; background: var(--bg-secondary); border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius) var(--radius); }
+.tab-content.active { display: block; }
+
+/* ========== Collapsible Sections ========== */
+.collapsible { margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.collapsible-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--bg-secondary); cursor: pointer;
+  font-weight: 600; font-size: 14px; color: var(--text); transition: background 0.2s;
+}
+.collapsible-header:hover { background: var(--bg-tertiary); }
+.collapsible-header .arrow { transition: transform 0.3s; font-size: 12px; color: var(--text-muted); }
+.collapsible.open .collapsible-header .arrow { transform: rotate(90deg); }
+.collapsible-body { display: none; padding: 16px; border-top: 1px solid var(--border); }
+.collapsible.open .collapsible-body { display: block; }
+
+/* ========== Figure Styles ========== */
+.figure-container {
+  margin: 24px 0; text-align: center; cursor: zoom-in;
+  border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden;
+  background: var(--bg); transition: box-shadow 0.2s;
+}
+.figure-container:hover { box-shadow: var(--shadow-lg); }
+.figure-container img { display: block; width: 100%; }
+.figure-caption {
+  padding: 14px 20px; text-align: left; background: var(--bg-secondary);
+  border-top: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); line-height: 1.6;
+}
+.figure-caption .fig-title { font-weight: 700; color: var(--primary); margin-bottom: 6px; font-size: 14px; }
+.figure-caption .fig-source { font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic; }
+
+/* Figure Modal */
+.figure-modal {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10000;
+  justify-content: center; align-items: center; padding: 40px;
+}
+.figure-modal.show { display: flex; }
+.figure-modal img { max-width: 95%; max-height: 90vh; border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.figure-modal-close {
+  position: absolute; top: 20px; right: 30px; color: white; font-size: 36px;
+  cursor: pointer; background: none; border: none; line-height: 1;
+}
+
+/* ========== Flow Chart ========== */
+.flow-chart {
+  display: flex; flex-direction: column; align-items: center; gap: 0; margin: 24px 0;
+}
+.flow-step {
+  background: var(--bg-secondary); border: 2px solid var(--primary); border-radius: var(--radius-md);
+  padding: 14px 24px; text-align: center; min-width: 280px; max-width: 500px;
+  position: relative; box-shadow: var(--shadow);
+}
+.flow-step .step-num {
+  position: absolute; top: -12px; left: -12px; background: var(--primary); color: white;
+  width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 13px; font-weight: 700;
+}
+.flow-step .step-title { font-weight: 700; color: var(--text); font-size: 14px; margin-bottom: 4px; }
+.flow-step .step-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.flow-arrow {
+  width: 2px; height: 24px; background: var(--primary); position: relative;
+}
+.flow-arrow::after {
+  content: ''; position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%);
+  border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--primary);
+}
+.flow-step.highlight { background: var(--primary-light); border-color: var(--primary-dark); }
+.flow-step.result { border-color: var(--accent); }
+.flow-step.result .step-num { background: var(--accent); }
+.flow-step.limitation { border-color: var(--warning); }
+.flow-step.limitation .step-num { background: var(--warning); }
+
+/* ========== Metric Cards ========== */
+.metric-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px; margin: 16px 0;
+}
+.metric-card {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px; text-align: center; transition: all 0.2s;
+}
+.metric-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.metric-card .metric-value { font-size: 28px; font-weight: 800; color: var(--primary); line-height: 1.2; }
+.metric-card .metric-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+.metric-card .metric-sub { font-size: 11px; color: var(--accent); margin-top: 2px; font-weight: 600; }
+
+/* ========== Formula Block ========== */
+.formula-block {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-left: 4px solid var(--primary);
+  border-radius: 0 var(--radius) var(--radius) 0; padding: 20px 24px; margin: 16px 0;
+  overflow-x: auto;
+}
+.formula-block .formula-label {
+  font-size: 12px; font-weight: 700; color: var(--primary); text-transform: uppercase;
+  margin-bottom: 10px; letter-spacing: 0.5px;
+}
+.formula-explanation {
+  margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border);
+  font-size: 13px; color: var(--text-secondary); line-height: 1.7;
+}
+.formula-explanation .var-list { margin-top: 8px; }
+.formula-explanation .var-item { display: flex; gap: 10px; margin-bottom: 4px; }
+.formula-explanation .var-symbol { font-weight: 700; color: var(--primary); min-width: 60px; font-family: 'Times New Roman', serif; }
+
+/* ========== Language Toggle ========== */
+.lang-zh { display: inline; }
+.lang-en { display: none; }
+[data-lang="en"] .lang-zh { display: none; }
+[data-lang="en"] .lang-en { display: inline; }
+
+/* ========== Print Mode ========== */
+@media print {
+  .topbar, .sidebar-left, .sidebar-right, #progress-bar, .btn, .search-box { display: none !important; }
+  .main-content { margin: 0 !important; padding: 20px !important; max-width: 100% !important; }
+  .collapsible-body { display: block !important; }
+  .figure-container { break-inside: avoid; }
+  body { font-size: 12px; }
+  .content-section { break-inside: avoid; }
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 1200px) {
+  .sidebar-right { display: none; }
+  .main-content { margin-right: 0; }
+}
+@media (max-width: 900px) {
+  .sidebar-left { transform: translateX(-100%); }
+  .sidebar-left.show { transform: translateX(0); box-shadow: var(--shadow-lg); }
+  .main-content { margin-left: 0; padding: 20px 16px 60px; }
+  .menu-toggle { display: inline-flex !important; }
+  .topbar-title { font-size: 13px; }
+  .info-grid { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.menu-toggle { display: none; }
+
+/* Mobile overlay */
+.sidebar-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99;
+}
+.sidebar-overlay.show { display: block; }
+
+/* Toast notification */
+.toast {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px);
+  background: var(--text); color: var(--bg); padding: 10px 24px; border-radius: 24px;
+  font-size: 13px; font-weight: 500; z-index: 10001; transition: transform 0.3s;
+  box-shadow: var(--shadow-lg);
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* Section badge */
+.source-badge {
+  display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px;
+  background: var(--bg-tertiary); color: var(--text-muted); margin-left: 8px;
+  font-weight: 500; vertical-align: middle;
+}
+</style>
+</head>
+<body>
+
+<!-- Reading Progress Bar -->
+<div id="progress-bar"></div>
+
+<!-- Top Bar -->
+<header class="topbar">
+  <button class="btn btn-icon menu-toggle" onclick="toggleSidebar()" title="目录">☰</button>
+  <div class="topbar-title">
+    <span>PMMG</span> 论文精读 · Pareto + MCTS molecular generation
+  </div>
+  <div class="topbar-actions">
+    <div class="search-box" id="searchBox">
+      <button class="btn btn-icon" onclick="toggleSearch()" title="搜索">🔍</button>
+      <input type="text" id="searchInput" placeholder="搜索关键词..." oninput="doSearch(this.value)">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+    <button class="btn btn-icon" onclick="toggleLang()" title="中英文切换" id="langBtn">中/EN</button>
+    <button class="btn btn-icon" onclick="toggleTheme()" title="深色模式" id="themeBtn">🌙</button>
+    <button class="btn btn-icon" onclick="exportMarkdown()" title="导出Markdown">📥</button>
+    <button class="btn btn-icon" onclick="window.print()" title="打印">🖨️</button>
+  </div>
+</header>
+
+<!-- Sidebar Overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="layout">
+  <!-- Left Sidebar: TOC -->
+  <nav class="sidebar-left" id="sidebarLeft">
+    <div class="toc-section"><div class="toc-section-title">📋 论文导航</div>
+      <a class="toc-item" href="#overview">论文概览</a><a class="toc-item" href="#summary">核心矛盾与答案</a><a class="toc-item" href="#flow">研究流程</a><a class="toc-item" href="#key-findings">核心发现</a><a class="toc-item" href="#reading-guide">阅读建议</a><a class="toc-item" href="#abstracts">简明摘要</a>
+    </div>
+    <div class="toc-section"><div class="toc-section-title">📖 分章节精读</div>
+      <a class="toc-item" href="#sec-abstract">Abstract 摘要</a><a class="toc-item" href="#sec-introduction">Introduction 引言</a><a class="toc-item" href="#sec-architecture">PMMG 架构</a><a class="toc-item" href="#sec-benchmark">七目标基准</a><a class="toc-item" href="#sec-individual">单目标与合成性</a><a class="toc-item" href="#sec-dual">EGFR/HER2 双靶点</a><a class="toc-item" href="#sec-discussion">Discussion 讨论</a><a class="toc-item" href="#sec-methods">Methods 方法</a>
+    </div>
+    <div class="toc-section"><div class="toc-section-title">🔬 图表与公式</div><a class="toc-item" href="#method-deep">方法详细解析</a><a class="toc-item" href="#figures">图表截图与图注翻译</a><a class="toc-item" href="#table-shots">表格截图与逐表解析</a><a class="toc-item" href="#formulas">公式解析</a><a class="toc-item" href="#conclusions">核心结论</a></div>
+    <div class="toc-section"><div class="toc-section-title">📊 评价与复现</div><a class="toc-item" href="#innovation">创新点</a><a class="toc-item" href="#limitations">局限性</a><a class="toc-item" href="#reproducibility">复现指南</a><a class="toc-item" href="#glossary">术语表</a><a class="toc-item" href="#references">参考文献</a><a class="toc-item" href="#advisor-report">导师汇报</a><a class="toc-item" href="#defense-qa">答辩问题</a></div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content" id="mainContent">
+    <!-- Content will be injected by JavaScript -->
+  </main>
+
+  <!-- Right Sidebar -->
+  <aside class="sidebar-right" id="sidebarRight">
+    <div class="right-widget">
+      <div class="right-widget-title">🎯 关键结论</div>
+      <div id="keyConclusions"></div>
+    </div>
+    <div class="right-widget">
+      <div class="right-widget-title">📚 核心术语</div>
+      <div id="keyTerms"></div>
+    </div>
+    <div class="right-widget">
+      <div class="right-widget-title">⚠️ 需警惕的问题</div>
+      <div id="keyQuestions"></div>
+    </div>
+  </aside>
+</div>
+
+<!-- Figure Modal -->
+<div class="figure-modal" id="figureModal" onclick="closeFigureModal()">
+  <button class="figure-modal-close">&times;</button>
+  <img id="figureModalImg" src="" alt="">
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// 论文精读内容数据
+// ============================================================
+const PAPER_DATA = {
+  "info": {
+    "titleEn": "A Multi-Objective Molecular Generation Method Based on Pareto Algorithm and Monte Carlo Tree Search",
+    "titleZh": "一种基于 Pareto 算法和蒙特卡洛树搜索的多目标分子生成方法",
+    "authors": "Yifei Liu, Yiheng Zhu, Jike Wang, Renling Hu, Chao Shen, Wanglin Qu, Gaoang Wang, Qun Su, Yuchen Zhu, Yu Kang, Peichen Pan, Chang-Yu Hsieh, Tingjun Hou",
+    "journal": "Advanced Science",
+    "year": "2025",
+    "volume": "12, 2410640",
+    "doi": "10.1002/advs.202410640",
+    "url": "https://doi.org/10.1002/advs.202410640",
+    "field": "计算药物设计、分子生成、多目标优化、Pareto 最优、蒙特卡洛树搜索",
+    "keywords": "PMMG, Pareto frontier, MCTS, SMILES, EGFR, HER2, ADMET",
+    "paperType": "算法方法 + 七目标基准 + 双靶点案例",
+    "researchObject": "多目标分子生成；七目标基准，以及 EGFR/HER2 双靶点抑制剂设计",
+    "researchQuestion": "如何在目标数量增多时，避免把真正的多目标优化简化成单一加权分数，并高效探索 Pareto 前沿？",
+    "mainConclusion": "PMMG 将向量化 Pareto Reward、向量化 UCB 和非支配节点池嵌入 MCTS，在七目标基准上达到 HV=0.569、SR=51.65%、Div=0.930；在 EGFR/HER2 案例中生成了部分预测性质和结合表现优于或接近拉帕替尼的候选。",
+    "audience": "分子生成、计算药物设计、多目标优化、强化学习和 MCTS 研究者",
+    "evidenceLevel": "中等：有多基线计算比较、合成可及性分析、对接/ABFE/Genscore 多重再评估；但核心性质和结合结果仍以预测或模拟为主，未完成系统湿实验验证。"
+  },
+  "oneSentence": "针对【药物设计中同时满足活性、ADMET、药物相似性和可合成性等多个目标的难题】，作者提出【PMMG：把 Pareto 非支配原则嵌入 RNN+MCTS 的分子生成器】，发现【在七目标任务上 PMMG 的成功率达到 51.65%，显著高于对比方法】，说明【保留向量目标和非支配候选池，比把目标压成一个加权分数更适合高维分子优化】。",
+  "metrics": [
+    [
+      "7",
+      "同步优化目标",
+      "EGFR、溶解度、通透性、代谢稳定性、毒性、QED、SAScore"
+    ],
+    [
+      "51.65%",
+      "Success Rate",
+      "七目标同时满足标准的生成分子比例"
+    ],
+    [
+      "0.569",
+      "Hypervolume",
+      "PMMG 的 Pareto 前沿覆盖体积"
+    ],
+    [
+      "0.930",
+      "Diversity",
+      "基于 Morgan/Tanimoto 的结构多样性"
+    ],
+    [
+      "74.33%",
+      "合成成功率",
+      "AiZynthFinder 评估；仅次于 REINVENT"
+    ],
+    [
+      "11.28% / 9.72%",
+      "超过拉帕替尼阈值",
+      "EGFR / HER2 docking score 更低的分子比例"
+    ]
+  ],
+  "flow": [
+    {
+      "num": 1,
+      "title": "现实问题",
+      "desc": "药物候选需同时满足活性、选择性、ADMET、药物相似性和可合成性。"
+    },
+    {
+      "num": 2,
+      "title": "现有方法的瓶颈",
+      "desc": "目标数增加后，许多方法只能优化 2–4 个目标，或用加权和把多目标压成一个分数。"
+    },
+    {
+      "num": 3,
+      "title": "核心原则",
+      "desc": "不把候选压成单一总分，而是在目标空间保留互不支配的 Pareto 候选。"
+    },
+    {
+      "num": 4,
+      "title": "PMMG 结构",
+      "desc": "RNN 生成 SMILES；MCTS 负责选择、扩展、模拟和回传；Reward/UCB 都是 n 维向量。"
+    },
+    {
+      "num": 5,
+      "title": "搜索机制",
+      "desc": "每个父节点维护非支配子节点池，随机从池中选择下一父节点，持续扩展化学空间。"
+    },
+    {
+      "num": 6,
+      "title": "七目标基准",
+      "desc": "与 SMILES、图模型、RL 和 VAE 基线比较 HV、SR、Div，并分析各单目标分布。"
+    },
+    {
+      "num": 7,
+      "title": "双靶点应用",
+      "desc": "筛选 EGFR/HER2 双靶点候选，再用 Glide、ADMETlab、ABFE 和 Genscore 多层再评估。"
+    },
+    {
+      "num": 8,
+      "title": "结论边界",
+      "desc": "PMMG 擅长高维 Pareto 搜索，但计算成本高、Pareto 前沿过大，且 1D SMILES/RNN 有表达限制。"
+    }
+  ],
+  "keyFindings": [
+    "七目标基准中，PMMG 的 HV=0.569、SR=51.65%、Div=0.930；SR 约为最佳对比方法的 2.5 倍，HV 比最佳基线高 31.4%【来源：第3–4页，Table 1】。",
+    "PMMG 将 Reward 和 UCB 都改成目标维度相同的向量，并用非支配节点池和非支配分子池避免单一加权分数掩盖某个目标的缺陷【来源：第2–3、13页，Figure 1，Methods】。",
+    "在 EGFR/HER2 双靶点设计中，11.28% 的分子 EGFR docking score 优于拉帕替尼阈值，9.72% 在 HER2 上优于阈值，2.96% 同时超过两个阈值；但这些是 docking/预测结果，不是药效实验【来源：第8页，Figure 6】。"
+  ],
+  "keyQuestions": [
+    "PMMG 生成 10,000 个分子平均需要约 16 小时，而其他基线通常在 1 小时内完成；性能提升伴随明显计算成本【来源：第12页，Discussion】。",
+    "论文将大量生成的非支配分子视为优势，但 Pareto 前沿可能包含数千个候选，如何按用户偏好选择最终分子仍未解决【来源：第12页】。",
+    "EGFR/HER2 的 docking、ABFE、Genscore 和 ADMETlab 结果均依赖模型或模拟；论文没有用系统湿实验确认候选的真实活性、选择性和毒性【来源：第8–12页】。"
+  ],
+  "readingGuide": {
+    "firstRead": "先看 Figure 1：理解四个 MCTS 步骤和两个非支配池；再看 Table 1：确认七目标基准的主结果；最后看 Figure 6 和 Table 5：区分 docking、自由能和 Genscore 证据。",
+    "keyFigures": "Figure 1（算法结构）、Figure 2（七目标分布）、Figure 3（化学空间覆盖）、Figure 5（候选雷达图）、Figure 6（双靶点 docking）。",
+    "hardSections": "Pareto dominance、向量 UCB、非支配节点池的更新规则，以及 HV/SR/Div 三个指标之间的差异。",
+    "cautiousConclusions": "不要把“超过拉帕替尼 docking 分数”直接翻译成“超过拉帕替尼药效”；也要注意 Table 5 中 Molecule 2 的 EGFR ABFE 明显较弱，双靶点候选并非全部稳健。"
+  },
+  "abstracts": [
+    {
+      "title": "100字以内中文摘要",
+      "content": "本文提出 PMMG，将 Pareto 非支配原则嵌入 RNN 与 MCTS 分子生成。在七目标基准中，PMMG 的成功率为 51.65%，并保持较高 HV 和结构多样性；EGFR/HER2 案例进一步生成了多目标性质较好的候选。"
+    },
+    {
+      "title": "200字以内中文摘要",
+      "content": "多目标药物设计同时要求活性、ADMET、药物相似性和可合成性。已有方法常把目标加权成一个分数，或难以处理超过四个目标。PMMG 用 RNN 生成 SMILES，用 MCTS 搜索，并将 Reward、UCB 和节点选择改为 Pareto 非支配逻辑。七目标基准中 PMMG 达到 HV 0.569、SR 51.65%、Div 0.930；EGFR/HER2 设计中部分候选的 docking、ABFE 或 Genscore 表现优于拉帕替尼，但仍需实验验证。"
+    },
+    {
+      "title": "English Brief Abstract",
+      "content": "PMMG integrates Pareto optimality into recurrent-neural-network molecular generation guided by Monte Carlo tree search. Instead of scalarizing many objectives, it maintains vector rewards, vector UCB values, non-dominated child-node pools and a non-dominated molecule pool. On a seven-objective benchmark, PMMG achieves HV=0.569, SR=51.65% and Div=0.930. In an EGFR/HER2 case study, several generated molecules show favorable docking, predicted properties, free-energy or Genscore results, although these computational results require experimental validation."
+    },
+    {
+      "title": "适合向导师汇报的版本",
+      "content": "PMMG 的主要贡献是把 Pareto 非支配搜索真正放进 MCTS：Reward 不再是加权标量，UCB 也变成向量，每个父节点保留非支配子节点，最终保留非支配分子。七目标测试中 SR 达 51.65%，但代价是约 16 小时生成 10,000 个分子。EGFR/HER2 案例有较好的计算筛选结果，但真实药效仍未验证。"
+    },
+    {
+      "title": "适合向非专业人士解释的版本",
+      "content": "如果同时找“强、稳定、好吸收、低毒、容易合成”的分子，把所有要求简单加权成一个总分，可能会让某一项很差的分子因为其他项高分而混进来。PMMG 不把要求压成一个总分，而是保留一组互相没有全面胜负关系的候选，再用树搜索不断扩大这组平衡方案。"
+    }
+  ],
+  "sectionOrder": [
+    "abstract",
+    "introduction",
+    "architecture",
+    "benchmark",
+    "individual",
+    "dual",
+    "discussion",
+    "methods"
+  ],
+  "sections": {
+    "abstract": {
+      "title": "Abstract 摘要",
+      "source": "第1页",
+      "content": "摘要指出，药物设计需要同时优化多个严格目标，而现有方法通常只能处理少量目标或把多目标简化成标量。PMMG 将 Pareto 算法和 MCTS 结合，在七目标基准上取得 51.65% 成功率，并在 EGFR/HER2 双靶点案例中生成了具有较好计算性质的候选。",
+      "keySentences": [
+        {
+          "en": "PMMG efficiently uncovers the Pareto Front for molecular design tasks in high-dimensional objectives space.",
+          "zh": "PMMG 能在高维目标空间中高效寻找分子设计的 Pareto 前沿。"
+        }
+      ],
+      "answers": "摘要回答提出什么方法、为什么需要它、以及论文报告的主要数字；它没有声称候选已经通过真实药理实验。",
+      "concepts": [
+        {
+          "en": "Pareto frontier",
+          "zh": "Pareto 前沿",
+          "desc": "由互不被其他解全面支配的解组成；改善一个目标通常要牺牲另一个目标。"
+        },
+        {
+          "en": "Monte Carlo Tree Search",
+          "zh": "蒙特卡洛树搜索（MCTS）",
+          "desc": "通过选择、扩展、模拟和回传，在巨大搜索树中逐步集中计算资源。"
+        },
+        {
+          "en": "Success rate",
+          "zh": "成功率（SR）",
+          "desc": "同时满足所有预设性质标准的生成分子比例。"
+        }
+      ],
+      "logic": "摘要把“高维多目标”与“Pareto+MCTS”绑定，后文分别解释算法、基准和双靶点应用。",
+      "focus": "先记住论文的核心对比：Pareto 向量搜索 vs 单一加权 Reward。",
+      "issues": "51.65% 的分母、目标阈值和生成预算需要结合 Methods/Table 1 解读。"
+    },
+    "introduction": {
+      "title": "Introduction 引言",
+      "source": "第1–2页",
+      "content": "引言从药物发现成本高、候选筛选慢出发，说明生成模型能快速提出分子，但常接近训练数据，难以按多个目标精确优化。传统多目标方法常使用加权和、乘积或 Boolean 标量 Reward；目标越多，权重越难设定，且某个目标的缺陷可能被其他高分掩盖。作者因此选择 Pareto Optimality 作为平衡多目标的原则，并用 MCTS 引导 RNN 在 SMILES 化学空间中搜索。",
+      "keySentences": [
+        {
+          "en": "Most multi-objective optimization strategies often resort to simplifying the problem into the single-dimensional problem by employing weighted summation or product transformations.",
+          "zh": "许多多目标优化策略用加权求和或乘积把问题简化为一维。"
+        }
+      ],
+      "answers": "引言回答为什么标量化不足，以及 PMMG 的定位：保留多维目标关系，再用搜索算法解决组合爆炸。",
+      "concepts": [
+        {
+          "en": "Scalarization",
+          "zh": "标量化",
+          "desc": "把多个目标合成为一个总分，例如加权和或乘积。"
+        },
+        {
+          "en": "Objective conflict",
+          "zh": "目标冲突",
+          "desc": "提升一个性质可能损害另一个性质。"
+        },
+        {
+          "en": "Chemical space",
+          "zh": "化学空间",
+          "desc": "可能的分子结构和性质组合形成的搜索空间。"
+        }
+      ],
+      "logic": "引言建立“目标数增加→标量化更脆弱→需要 Pareto 搜索”的逻辑。",
+      "focus": "注意作者的批评针对“多数方法”的设计方式，不等于所有加权方法都无效。",
+      "issues": "引言没有在此处给出统一理论证明，后续 Table 1 才提供经验比较。"
+    },
+    "architecture": {
+      "title": "Results：Architecture of PMMG",
+      "source": "第2–3页，Figure 1",
+      "content": "PMMG 由 RNN 分子生成器和 Pareto Monte Carlo 搜索树组成。RNN 学习 SMILES 语法并预测下一个 token；MCTS 依次执行 selection、expansion、simulation、backpropagation。与普通 MCTS 不同，PMMG 的 Reward 是 n 维目标向量，UCB 也是向量；每个父节点建立非支配子节点池，选择时随机从池中取一个非支配节点继续扩展，最终维护非支配分子池。",
+      "keySentences": [
+        {
+          "en": "A non-dominated node is defined as one that is not inferior to any other node in at least one property.",
+          "zh": "非支配节点指在至少一个性质上不劣于其他节点、因而没有被全面支配的节点。"
+        }
+      ],
+      "answers": "本节回答算法如何把 Pareto 原则嵌入树搜索，并为 Figure 1 的六个子图提供流程定义。",
+      "concepts": [
+        {
+          "en": "Non-dominated",
+          "zh": "非支配",
+          "desc": "不存在另一个解在所有目标上不差且至少一个目标更好。"
+        },
+        {
+          "en": "UCB",
+          "zh": "上置信界",
+          "desc": "结合平均 Reward、访问次数和探索系数，平衡利用与探索。"
+        },
+        {
+          "en": "Token",
+          "zh": "词元/token",
+          "desc": "SMILES 序列中逐步生成的字符或符号。"
+        }
+      ],
+      "logic": "RNN 提供合法 SMILES 的生成先验，MCTS 负责目标导向搜索，非支配池连接两者。",
+      "focus": "重点看为什么选“随机非支配节点”而不是单个最高分节点：这是为了保留前沿多样性。",
+      "issues": "向量 UCB 的具体函数形式在主文以 f(r̄,n_visits,c) 表示，完整实现细节需结合代码。"
+    },
+    "benchmark": {
+      "title": "Results：Performance on seven-objective optimization",
+      "source": "第2–5页，Table 1，Figure 2",
+      "content": "基准同时优化 EGFR、溶解度、通透性、代谢稳定性、毒性、QED 和 SAScore。部分目标需最大化，毒性与 SAScore 需最小化，作者用 Gaussian modifier 将目标归一化到最大化方向。每种方法生成 10,000 个分子，比较 HV、SR 和 Div。PMMG 的 HV 0.569±0.054、SR 51.65%±0.78%、Div 0.930±0.005，均为表中最佳。",
+      "keySentences": [
+        {
+          "en": "PMMG outperformed all baselines in three key metrics: HV, SR, and Div.",
+          "zh": "PMMG 在 HV、SR 和 Div 三个关键指标上都优于所有基线。"
+        }
+      ],
+      "answers": "本节是算法有效性的主证据，回答 PMMG 是否能在七目标下同时覆盖前沿、满足阈值并保持多样性。",
+      "concepts": [
+        {
+          "en": "Hypervolume",
+          "zh": "超体积指标（HV）",
+          "desc": "参考点以内由 Pareto 解支配的目标空间体积，越大通常表示前沿质量和覆盖更好。"
+        },
+        {
+          "en": "Diversity",
+          "zh": "多样性（Div）",
+          "desc": "基于成对 Morgan/Tanimoto 相似度衡量生成结构的不相似程度。"
+        },
+        {
+          "en": "Gaussian modifier",
+          "zh": "高斯修正器",
+          "desc": "把不同尺度、最大化/最小化方向的目标统一转换到可比较的最大化分数。"
+        }
+      ],
+      "logic": "Table 1 给出总体数字，Figure 2 展开各目标分布和目标两两关系，形成“总体指标→单目标解释”。",
+      "focus": "SR 51.65% 是最直观的数字，但不能替代 HV；HV 更关注前沿覆盖，Div 关注结构差异。",
+      "issues": "对比方法的代码来自公开实现；不同方法的训练和计算预算是否完全等价，应在复现时核查。"
+    },
+    "individual": {
+      "title": "Results：Individual objectives, UMAP and synthesizability",
+      "source": "第4–7页，Figure 3，Table 2",
+      "content": "单目标分布显示 PMMG 在 EGFR 抑制活性上优势明显，在溶解度、通透性和代谢稳定性上接近最佳基线；超过 90% 的 PMMG 分子毒性低于 3.0、SAScore 低于 4.0。生成分子大多位于 300–500 Da，平均约 400 Da，并覆盖芳香环、杂环、稠环和多种官能团。UMAP 显示 PMMG 覆盖了其他模型探索的化学空间。AiZynthFinder 对每种方法随机选 100 个分子并重复 3 次，PMMG 合成成功率 74.33%，仅次于 REINVENT。",
+      "keySentences": [
+        {
+          "en": "The majority of the generated molecules showed Tanimoto similarity coefficients below 0.7, indicating high structural novelty.",
+          "zh": "大多数生成分子的 Tanimoto 相似系数低于 0.7，说明结构新颖性较高。"
+        }
+      ],
+      "answers": "本节回答 PMMG 的总体优势是否由某个单一目标造成，以及候选是否兼具多样性和合成可行性。",
+      "concepts": [
+        {
+          "en": "UMAP",
+          "zh": "统一流形近似与投影",
+          "desc": "把高维指纹相似关系映射到二维，用于观察化学空间分布。"
+        },
+        {
+          "en": "SAScore",
+          "zh": "合成可及性评分",
+          "desc": "估计分子合成难度；本文目标是较低分。"
+        },
+        {
+          "en": "AiZynthFinder",
+          "zh": "AiZynthFinder",
+          "desc": "逆合成工具，用于判断候选是否存在可行合成路线。"
+        }
+      ],
+      "logic": "Figure 3 验证空间覆盖，Table 2 验证合成可及性；两者补足 Table 1 的 HV/SR/Div。",
+      "focus": "不要把 UMAP 的视觉覆盖直接当成统计意义上的新颖性；具体结论应结合 Div 和相似度阈值。",
+      "issues": "合成成功率只抽样 100 个分子、重复 3 次；它不是所有 10,000 个分子的实验合成率。"
+    },
+    "dual": {
+      "title": "Results：EGFR/HER2 dual-target inhibitor design",
+      "source": "第7–12页，Tables 3–6，Figures 5–6",
+      "content": "作者将 EGFR 和 HER2 作为两个靶点，同时要求溶解度、通透性、代谢稳定性、毒性、QED 和 SAScore 达到 Table 3 阈值。先筛选出 2000 个分子，再用 Glide 对接并用 ADMETlab2.0 预测。11.28% 的分子在 EGFR 上优于拉帕替尼 docking 阈值，9.72% 在 HER2 上优于阈值，2.96% 同时优于两者。Figure 5 展示拉帕替尼与 Molecules 1–3 的雷达图；Figure 6 展示 docking 分布和构象。",
+      "keySentences": [
+        {
+          "en": "2.96% of the molecules outperformed lapatinib on both targets.",
+          "zh": "有 2.96% 的分子在两个靶点上都超过拉帕替尼。"
+        }
+      ],
+      "answers": "本节回答 PMMG 是否能从多目标 Pareto 候选中筛出双靶点候选，并用多层计算评估进一步排序。",
+      "concepts": [
+        {
+          "en": "Dual-target inhibitor",
+          "zh": "双靶点抑制剂",
+          "desc": "同时针对 EGFR 和 HER2 的候选分子。"
+        },
+        {
+          "en": "Docking score",
+          "zh": "对接分数",
+          "desc": "对接程序对结合姿势/相互作用的评分；文中通常分数越低表示结合越好。"
+        },
+        {
+          "en": "ABFE",
+          "zh": "绝对结合自由能",
+          "desc": "用分子模拟估计配体与靶点结合的自由能，越负通常表示结合更有利。"
+        },
+        {
+          "en": "Genscore",
+          "zh": "Genscore",
+          "desc": "作者团队的蛋白-配体机器学习重评分框架，文中高分表示更好的潜在结合。"
+        }
+      ],
+      "logic": "Table 3 是硬筛选，Table 4 是代表性属性，Figure 6 是 docking 分布/构象，Table 5/6 是进一步的 ABFE 和 Genscore 复核。",
+      "focus": "这是一个多层筛选漏斗，不同指标可能给出不同候选排序；Molecule 2 的 EGFR ABFE 是明显反例。",
+      "issues": "docking、ABFE 和 Genscore 都不是体外 IC50；不能把预测超过拉帕替尼等同于治疗效果。"
+    },
+    "discussion": {
+      "title": "Discussion 讨论",
+      "source": "第12页",
+      "content": "讨论认为目标数增加会扩大化学空间和搜索体积，PMMG 通过增加计算资源在 Pareto 前沿上获得更强自主探索能力。作者也承认方法更适合 1D SMILES 表示，未来可整合图或 3D 方法。PMMG 的 Reward 模型独立于具体预测器，可接入多保真反馈，如 docking、FEP 和湿实验。局限包括 Pareto 前沿过大难以选择、MCTS/RNN/SMILES 的长序列和化学有效性限制，以及高计算成本。",
+      "keySentences": [
+        {
+          "en": "PMMG exhibits certain limitations ... the selection of desired molecules from this vast array challenging.",
+          "zh": "PMMG 存在局限：生成的 Pareto 前沿可能非常庞大，难以从中选择真正想要的分子。"
+        }
+      ],
+      "answers": "讨论回答方法能否扩展、为什么仍有潜力、以及从计算结果到真实实验还缺什么。",
+      "concepts": [
+        {
+          "en": "Multi-fidelity feedback",
+          "zh": "多保真反馈",
+          "desc": "把低成本预测、中成本模拟和高成本实验逐级纳入优化。"
+        },
+        {
+          "en": "Exploration-exploitation",
+          "zh": "探索-利用权衡",
+          "desc": "在发现新化学空间和利用已有高奖励节点之间分配计算。"
+        },
+        {
+          "en": "Scalability",
+          "zh": "可扩展性",
+          "desc": "目标数、候选数和树深度增加后，算法是否仍可承受。"
+        }
+      ],
+      "logic": "讨论把“高维 Pareto 的优势”与“前沿过大、计算昂贵”的代价放在一起。",
+      "focus": "重点记录作者自己承认的限制，不要只复述结论中的“potential”。",
+      "issues": "16 小时 vs 1 小时的成本比较依赖硬件和实现，不能直接外推到所有环境。"
+    },
+    "methods": {
+      "title": "Experimental Section / Methods",
+      "source": "第13–14页",
+      "content": "PMMG 的四个改动是：Reward Redefinition，将 Reward 设为 n 维向量；UCB Redefinition，将 UCB 设为由平均 Reward、访问次数和探索系数组成的向量函数；Optimal Child Node Pool，逐维比较子节点 UCB，删除被支配节点并保留非支配池；Optimal Molecule Pool，对生成分子的 n 维 Reward 进行全局非支配筛选。RNN 使用 81 维 embedding、两层 256 维 GRU，在 ZINC 约 250,000 个化合物上训练，学习率 0.01、batch 256、100 epochs。",
+      "keySentences": [
+        {
+          "en": "The reward was redefined in the backpropagation step as a vector consisting of n dimensions.",
+          "zh": "回传步骤中的 Reward 被重新定义为 n 维向量，每个维度对应一个优化目标。"
+        }
+      ],
+      "answers": "方法回答 PMMG 的可复现实现细节，以及 Pareto 关系如何进入树搜索的两个关键步骤。",
+      "concepts": [
+        {
+          "en": "GRU",
+          "zh": "门控循环单元",
+          "desc": "RNN 的一种结构，用门控机制处理序列依赖。"
+        },
+        {
+          "en": "Pareto dominance",
+          "zh": "Pareto 支配",
+          "desc": "解 A 在所有目标不差于 B，且至少一个目标优于 B。"
+        },
+        {
+          "en": "Optimal molecule pool",
+          "zh": "最优分子池",
+          "desc": "只保留全局非支配生成分子的集合。"
+        }
+      ],
+      "logic": "方法把概念定义、公式、RNN 配置和评价指标连接起来；公式区单独解释 Eq. (1)–(5)。",
+      "focus": "复现时重点核对 RNN 训练数据、MCTS 轮数、探索系数 c、生成数量和基线代码版本。",
+      "issues": "文中部分 UCB/奖励实现以函数形式给出，具体代码参数仍需从 GitHub 仓库核对。"
+    }
+  },
+  "methodDeep": {
+    "design": "RNN 作为 SMILES 先验，MCTS 作为搜索策略；每个节点携带 n 维目标反馈，Pareto 比较决定哪些路径继续探索。",
+    "studyObject": "七目标分子生成基准；EGFR/HER2 双靶点多目标筛选；三种分子候选的 docking、ABFE 和 Genscore 复核。",
+    "sampleSize": "每种方法生成 10,000 个分子用于基准；AiZynthFinder 每种方法随机抽 100 个并重复 3 次；双靶点流程先筛选 2,000 个分子。",
+    "sampleAcquisition": "RNN 逐 token 生成 SMILES；MCTS 在树上进行 selection/expansion/simulation/backpropagation；子节点和最终分子使用 Pareto 非支配筛选。",
+    "controlGroup": "SMILES_GA、SMILES_LSTM、SMILES_VAE、REINVENT、MARS、Graph_GA、Graph_MCTS。",
+    "variables": {
+      "independent": "生成算法与表示类型；目标数量和目标阈值。",
+      "dependent": "HV、SR、Div、单目标分布、合成成功率、docking、ABFE、Genscore。",
+      "control": "每种基准方法 10,000 个生成分子；七目标归一化；相同评价指标。"
+    },
+    "workflow": "设置目标和归一化函数 → RNN 生成 token → MCTS 选择节点 → 扩展子节点 → 模拟完整 SMILES 并预测性质 → 用向量 Reward 回传 → 计算向量 UCB → 删除被支配子节点 → 随机选择非支配子节点继续 → 全局更新非支配分子池。",
+    "dataSource": "RNN 训练集约 250,000 个 ZINC 化合物；生物活性、通透性、代谢稳定性、溶解度和急性毒性预测器来自 Yoshizawa 等工作；双靶点使用 Glide、ADMETlab2.0、NAMD3/BFEE、Genscore。",
+    "preprocessing": "用 SMILES 表示分子；将不同方向和尺度的目标用 Gaussian modifier 归一化到最大化方向；使用 Morgan fingerprint 计算 Div。",
+    "statisticalMethods": "RNN/GRU、MCTS、Pareto dominance、UCB、Gaussian modifier、HV、SR、Div、UMAP、AiZynthFinder、Glide docking、ABFE、Genscore。",
+    "modelIO": {
+      "input": "部分 SMILES token、当前树节点及其历史访问/向量 Reward。",
+      "output": "下一 token 概率、候选分子的多目标预测值、向量 UCB、非支配节点/分子池。"
+    },
+    "metrics": "HV 衡量 Pareto 前沿体积；SR 衡量同时达标比例；Div 衡量结构不相似度；此外还有 docking score、ΔG、Genscore 和 AiZynthFinder 合成成功率。",
+    "validation": "七目标与七种基线比较；Figure 2 单目标分布；Figure 3 UMAP；Table 2 合成可及性重复评估；双靶点 docking、ABFE 和 Genscore 多层复核。",
+    "methodSufficiency": "方法足以支持 PMMG 在该计算基准上更好探索多目标 Pareto 候选；不足以单独支持真实药物活性、毒性或临床价值。",
+    "biases": "性质预测器和训练集决定 Reward 上限；基线实现、硬件和预算差异可能影响比较；docking/ABFE/Genscore 之间的模型误差可能相关；成功率阈值来自预设标准。"
+  },
+  "modelArchitecture": {
+    "input": "SMILES token 序列、树节点状态和多目标预测值。",
+    "structure": "81-d embedding → 2×256-d GRU → token probability → MCTS → predictor → vector Reward/UCB → Pareto pools。",
+    "training": "ZINC 约 250,000 分子；learning rate 0.01、batch 256、100 epochs；48-core Intel Xeon Gold 6240R。",
+    "loss": "论文摘录未明确给出 RNN 交叉熵公式；MCTS 直接使用预测目标组成 Reward 向量。",
+    "optimization": "MCTS 的 UCB 探索与利用；Pareto 非支配筛选替代单一标量排序。",
+    "hyperparameters": "embedding=81；GRU=2层×256；lr=0.01；batch=256；epochs=100；每种方法生成10,000分子；探索系数 c 的具体设置需查代码。",
+    "baselines": "SMILES_GA、SMILES_LSTM、SMILES_VAE、REINVENT、MARS、Graph_GA、Graph_MCTS。",
+    "metrics": "HV、SR、Div、AiZynthFinder synthesis success、docking、ABFE、Genscore。",
+    "advantages": "目标数扩展能力强；避免权重设定；保留多样 Pareto 解；与 Reward 模型解耦；可接多保真反馈。",
+    "disadvantages": "计算成本高；Pareto 池可能过大；1D SMILES 和 RNN 长序列限制；依赖预测器质量；最终候选选择仍需用户偏好。",
+    "reproducibility": "代码：https://github.com/Liuyifeii/PMMG；论文给出 RNN 主要参数，MCTS 细节和完整运行配置需结合仓库。"
+  },
+  "figures": [
+    {
+      "id": 1,
+      "title": "PMMG 工作流",
+      "page": "第3页",
+      "image": "pmmg_assets/page-03.png",
+      "captionEn": "Figure 1. Workflow of PMMG. a) Expansion: Expand the parent node to obtain its corresponding child nodes. b) Simulation: Simulate all child nodes, predict properties, and identify all non-dominated nodes among them. c) Backpropagation: Calculates the Upper Confidence Bound (UCB) for each node based on simulation results and updates node states through backpropagation. d) Selection: Randomly select a non-dominated child node from the pool of non-dominated nodes as the parent node, where a non-dominated node is defined as one that is not inferior to any other node in at least one property. e) Non-dominated solutions: Collect sampled molecules throughout the process, eliminate dominated molecules, and obtain the non-dominated solution set. f) The overall workflow of PMMG.",
+      "captionZh": "图1：PMMG 工作流。a）扩展：扩展父节点获得子节点；b）模拟：模拟全部子节点、预测性质并找出非支配节点；c）回传：依据模拟结果计算每个节点的上置信界（UCB），并通过回传更新节点状态；d）选择：从非支配节点池随机选择一个子节点作为父节点，非支配节点指至少在一个性质上不劣于其他节点的节点；e）非支配解：收集过程中的分子，去除被支配分子，得到非支配解集；f）PMMG 总体流程。",
+      "description": "这张图把 PMMG 的“局部树搜索”和“全局非支配分子池”放在一页中。上半部分说明一个父 token 如何扩展和评估；中间部分说明 Pareto 比较如何过滤子节点；底部说明多个 round 如何持续产生分子并更新 Pareto molecule pool。",
+      "axes": "流程图，不是定量坐标图。",
+      "legend": "黄色/浅色节点表示候选或非支配节点，灰色表示被支配节点，黑色表示终止 token；箭头区分 selection、expansion、simulation、backpropagation。",
+      "subplots": {
+        "a": "RNN 给当前 token 生成多个子 token。",
+        "b": "Predictor 为完整模拟路径给出多目标值。",
+        "c": "Reward=[o1,…,on]，UCB 由平均 Reward、访问次数和 c 计算。",
+        "d": "只把非支配 child node 放入 pool，并随机选择其中一个。",
+        "e": "全局分子池同样删除被支配分子。",
+        "f": "Round 1/2/n 展示搜索循环。"
+      },
+      "trend": "关键不是单纯挑最高分节点，而是保留不同目标方向上的非支配节点。",
+      "significance": "没有统计显著性或误差条；这是算法示意图。",
+      "errorBars": "无误差条；图注只描述操作流程。",
+      "support": "直接支撑 PMMG 的结构创新：Pareto 逻辑同时进入节点选择和最终分子保留。",
+      "alternative": "随机从非支配池选择可能增加探索，但也可能牺牲短期利用效率；流程图本身无法量化此权衡。",
+      "summary": "PMMG 把 Pareto 前沿变成 MCTS 的中间记忆和最终输出。",
+      "zhEn": {
+        "扩展": "Expansion",
+        "模拟": "Simulation",
+        "回传": "Backpropagation",
+        "非支配": "Non-dominated"
+      }
+    },
+    {
+      "id": 2,
+      "title": "七目标基准表现",
+      "page": "第5页",
+      "image": "pmmg_assets/page-05.png",
+      "captionEn": "Figure 2. Performance on multi-objective optimization. a) The framework of PMMG in experiments. b) The distribution of the molecules generated by each method on seven objectives. Each figure represents the distribution for a different target: EGFR, Solubility, Metabolic Stability, Permeability, Toxicity, QED, and SAScore. In each figure, the different colors of the violin plots represent seven different methods, including PMMG and six baselines. The vertical axis indicates the score range for each target. The width and length of the violin plots represent the enrichment of molecules within the corresponding score range. c) Pairwise scatter plots for each objective pair.",
+      "captionZh": "图2：多目标优化表现。a）实验中的 PMMG 框架；b）各方法在七个目标上的分子分布，目标包括 EGFR、溶解度、代谢稳定性、通透性、毒性、QED 和 SAScore；不同颜色的小提琴图代表 PMMG 和六个基线方法，纵轴为对应目标的分数范围，小提琴的宽度和长度表示该分数区间内分子的富集程度；c）各目标对的两两散点图。",
+      "description": "Figure 2 不是只看某一个最佳分子，而是比较每个方法生成分布的形状。EGFR、溶解度、通透性、代谢稳定性和 QED 越高越好；毒性和 SAScore 需要结合阈值方向理解。c 的矩阵用于观察目标之间是否存在明显的联合可行区域。",
+      "axes": "b：每个小提琴图纵轴是一个目标的归一化/原始范围；c：行列分别对应七个目标，非对角格为两目标散点密度。",
+      "legend": "颜色对应 PMMG、SMILES_GA、SMILES_LSTM、SMILES_VAE、REINVENT、Graph_GA、MARS 等方法。",
+      "subplots": {
+        "a": "左侧是实验框架：设置七个目标、训练 RNN、预测 token。",
+        "b": "七个单目标分布；小提琴越宽表示该分数附近样本越多。",
+        "c": "目标两两关系，观察多目标联合分布。"
+      },
+      "trend": "PMMG 在 EGFR 方向更有优势，同时没有明显牺牲整体结构/性质分布。",
+      "significance": "正文没有在 Figure 2 中逐个报告 p 值；Table 1 才提供均值±波动的总体比较。",
+      "errorBars": "图中分布宽度不是置信区间，不能当作误差条；它表示样本富集。",
+      "support": "解释 Table 1 的 HV/SR 优势来自多个目标分布的联合改善，而非单一目标极端值。",
+      "alternative": "不同方法的分布差异也可能来自生成器先验、目标修正器和基线实现差异。",
+      "summary": "Figure 2 把“成功率”拆成可观察的七目标分布和两两关系。",
+      "zhEn": {
+        "小提琴图": "Violin plot",
+        "富集": "Enrichment",
+        "两两散点图": "Pairwise scatter plot"
+      }
+    },
+    {
+      "id": 3,
+      "title": "化学空间 UMAP",
+      "page": "第6页",
+      "image": "pmmg_assets/page-06.png",
+      "captionEn": "Figure 3. UMAP plot of molecules. a) The comparison of molecular distributions generated by the eight methods. b–i) The UMAP distribution maps of the molecules generated by PMMG, SMILES_GA, SMILES_LSTM, SMILES_VAE, REINVENT, Graph_GA, Graph_MCTS, and MARS, respectively.",
+      "captionZh": "图3：分子的 UMAP 图。a）八种方法生成分子分布的比较；b–i）分别展示 PMMG、SMILES_GA、SMILES_LSTM、SMILES_VAE、REINVENT、Graph_GA、Graph_MCTS 和 MARS 生成分子的 UMAP 分布。",
+      "description": "UMAP 将 Morgan 指纹的高维相似关系压到二维。作者关心的不是某个簇是否“好”，而是 PMMG 是否覆盖其他模型探索的区域，同时保持多样性。",
+      "axes": "二维 UMAP 坐标；坐标轴本身没有直接物理意义，邻近关系表示指纹空间相似。",
+      "legend": "不同子图对应不同生成方法；颜色/点密度表示分子在嵌入平面中的分布。",
+      "subplots": {
+        "a": "八种方法叠加比较总体覆盖。",
+        "b": "PMMG 的分布，作者认为覆盖面较广。",
+        "c–i": "各基线方法的化学空间分布。"
+      },
+      "trend": "PMMG 覆盖了其他方法探索的大部分区域，与 Table 1 的 Div=0.930 相一致。",
+      "significance": "没有显著性检验；UMAP 是可视化降维。",
+      "errorBars": "无误差条；点云密度不等于概率密度的严格估计。",
+      "support": "支持“PMMG 的性能提升不是只在狭窄化学簇中取得”的解释。",
+      "alternative": "UMAP 的参数、随机初始化和指纹表示会影响视觉结构；覆盖不等于发现更有药效的区域。",
+      "summary": "PMMG 在保持高目标性能的同时没有明显塌缩到单一化学簇。",
+      "zhEn": {
+        "化学空间": "Chemical space",
+        "指纹": "Fingerprint",
+        "分布地图": "Distribution map"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Top 500 分子的七目标分布",
+      "page": "第7页",
+      "image": "pmmg_assets/page-07.png",
+      "captionEn": "Figure 4. The distribution of the top-ranked 500 molecules generated by each method on seven objectives. Each figure represents the property distribution of the top 500 molecules for each target: a) EGFR, b) Solubility, c) Metabolic Stability, d) Permeability, e) Toxicity, f) QED, and g) SAScore. In each figure, the vertical axis represents different methods, including PMMG and six baselines, and the horizontal axis represents the property distribution scores for the target. In the heatmap, the number in each cell indicates the number of molecules in that range, with darker colors representing higher numbers of molecules.",
+      "captionZh": "图4：各方法生成的排名前 500 分子在七个目标上的分布。a）EGFR，b）溶解度，c）代谢稳定性，d）通透性，e）毒性，f）QED，g）SAScore。纵轴为不同方法，横轴为目标分数区间；热图每个格子的数字表示该区间内分子数，颜色越深表示数量越多。",
+      "description": "Figure 4 只看每种方法的 top 500 分子，因此它回答的是“高排名候选的质量结构”，不是全体 10,000 分子的总体分布。深色区域表示 top 候选集中在哪些分数区间。",
+      "axes": "横轴为每个属性的分数区间；纵轴为方法；格内数字是计数。",
+      "legend": "颜色深浅表示计数，方法行用于横向比较。",
+      "subplots": {
+        "a": "EGFR top 500 的分数集中位置。",
+        "b–d": "溶解度、代谢稳定性、通透性。",
+        "e": "毒性需向低分方向理解。",
+        "f–g": "QED 和 SAScore 的高排名分布。"
+      },
+      "trend": "PMMG 的 top 候选在多项目标上集中于更有利区间，而不是只改善 EGFR。",
+      "significance": "论文没有对每个热图格子进行显著性检验。",
+      "errorBars": "热图颜色是计数，不是误差或置信区间。",
+      "support": "补充 Table 1 的整体指标，说明 PMMG 的高质量候选不是由少数孤立样本造成。",
+      "alternative": "top 500 的截断本身会放大高分区间，不能代表所有生成样本。",
+      "summary": "Figure 4 展示了 Pareto 搜索后“高质量候选群”的目标结构。",
+      "zhEn": {
+        "热图": "Heatmap",
+        "排名前 500": "Top-ranked 500",
+        "计数": "Count"
+      }
+    },
+    {
+      "id": 5,
+      "title": "代表性候选的雷达图",
+      "page": "第10页",
+      "image": "pmmg_assets/page-10.png",
+      "captionEn": "Figure 5. Predicted properties of Example Molecules. a) The docking score and predicted properties of lapatinib. b) The docking score and predicted properties of Molecule 1. c) The docking score and predicted properties of Molecule 2. d) The docking score and predicted properties of Molecule 3. The figures include seven properties: EGFR docking score, HER2 docking score, LogP, Metabolism, Permeability, SAScore, and QED. The radar charts display their performance for each objective.",
+      "captionZh": "图5：代表性分子的预测性质。a）拉帕替尼的 docking score 和预测性质；b）Molecule 1；c）Molecule 2；d）Molecule 3。图中包括 EGFR/HER2 docking score、LogP、Metabolism、Permeability、SAScore 和 QED 七个属性，雷达图展示各目标表现。",
+      "description": "雷达图用于快速比较候选的多目标轮廓。Molecule 1/2/3 并非每一项都超过拉帕替尼：它们是在不同目标之间取得不同折中的 Pareto 候选。",
+      "axes": "七条径向轴分别对应 docking、LogP、Metabolism、Permeability、SAScore、QED 等；不同图的方向需结合图中数值，而不能只比较面积。",
+      "legend": "灰色为拉帕替尼，橙色为 Molecules 1–3；图旁标出具体 docking 和 ADMET 数值。",
+      "subplots": {
+        "a": "拉帕替尼基线：EGFR -7.88、HER2 -9.30。",
+        "b": "Molecule 1：EGFR -7.74、HER2 -11.12，HER2 docking 更优。",
+        "c": "Molecule 2：EGFR -8.32、HER2 -8.77，EGFR 更优但 HER2 不超过基线。",
+        "d": "Molecule 3：EGFR -7.59、HER2 -10.04，兼具较好的双靶点 docking。"
+      },
+      "trend": "Molecule 1–3 体现不同 Pareto 折中，不能用单一雷达面积定义“最好”。",
+      "significance": "无显著性检验；这是代表性案例图。",
+      "errorBars": "无误差条；数值是预测/模拟输出。",
+      "support": "说明 PMMG 的输出不是单一最优点，而是一组可按偏好选择的候选。",
+      "alternative": "雷达图容易让面积造成误读；具体 docking 方向是“越低越好”，LogP/其他属性也需按各自标准解读。",
+      "summary": "代表性 Pareto 候选有不同优势，必须结合数值和目标方向比较。",
+      "zhEn": {
+        "雷达图": "Radar chart",
+        "代表性分子": "Example molecule",
+        "基线药物": "Reference drug"
+      }
+    },
+    {
+      "id": 6,
+      "title": "双靶点 Docking 结果",
+      "page": "第11页",
+      "image": "pmmg_assets/page-11.png",
+      "captionEn": "Figure 6. Docking results. Distribution of Docking Scores for PMMG-Generated Molecules on a) EGFR and b) HER2. The horizontal axis represents docking scores, and the vertical axis represents density distribution. In (a), the shaded area (orange) represents the proportion of molecules with docking scores <−7.88. In (b), the shaded area (dark green) represents the proportion of molecules with docking scores <−9.30. The scores −7.88 and −9.30 are the docking scores of Lapatinib for the EGFR and HER2 targets, respectively. c) Docking of example molecules; the molecule circled in the red box is the reference molecule, lapatinib. d) Docking conformations of Molecules 1, 2, 3, and Lapatinib with EGFR and HER2.",
+      "captionZh": "图6：对接结果。a）PMMG 分子在 EGFR 上的 docking score 分布；b）在 HER2 上的分布。横轴为 docking score，纵轴为密度；a 中橙色阴影表示 score<-7.88 的分子比例；b 中深绿色阴影表示 score<-9.30 的比例。-7.88 和 -9.30 分别是拉帕替尼在 EGFR/HER2 上的分数。c）代表性分子的对接；红框圈出拉帕替尼。d）Molecules 1–3 与拉帕替尼在 EGFR/HER2 蛋白口袋中的构象。",
+      "description": "a/b 给出全体 PMMG 候选相对于拉帕替尼的分布位置；c/d 从分布中挑出代表性结构和口袋姿势。正文报告 EGFR 超阈值 11.28%、HER2 9.72%、双靶点 2.96%。",
+      "axes": "a/b 横轴为 docking score（越低通常越好），纵轴为密度；c 是分子结构/对接示意；d 是蛋白表面口袋中的构象。",
+      "legend": "橙色和深绿色阴影分别表示超过 EGFR/HER2 拉帕替尼阈值的面积；红框为拉帕替尼参考分子。",
+      "subplots": {
+        "a": "EGFR 分布主要约在 -8 到 -4，中位数约 -6。",
+        "b": "HER2 分布主要约在 -7 到 -10，中位数约 -8。",
+        "c": "展示拉帕替尼与 Molecules 1–3 的结构。",
+        "d": "展示四个分子在两种靶点口袋的姿势。"
+      },
+      "trend": "只有一部分候选超过拉帕替尼阈值，双靶点同时超过的比例更小。",
+      "significance": "正文给出比例，但没有把阴影面积当作显著性检验；没有 p 值。",
+      "errorBars": "密度曲线没有误差条；比例是阈值面积/样本比例。",
+      "support": "支持 PMMG 可提出双靶点 docking 表现较好的候选，但不证明真实结合。",
+      "alternative": "docking score 受构象、打分函数和蛋白结构影响；docking 结果不能替代实验结合常数。",
+      "summary": "Figure 6 将“候选分布”和“具体结合姿势”放在一起，是双靶点案例的关键证据。",
+      "zhEn": {
+        "密度": "Density",
+        "阴影面积": "Shaded area",
+        "对接构象": "Docking conformation"
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": 1,
+      "title": "向量化 Reward",
+      "latex": "\\mathrm{reward}=[o_1,o_2,o_3,\\ldots,o_n]",
+      "source": "第13页，Eq. (1)",
+      "variables": [
+        {
+          "symbol": "o_i",
+          "desc": "第 i 个优化目标的预测/归一化结果。"
+        },
+        {
+          "symbol": "n",
+          "desc": "目标数量。"
+        }
+      ],
+      "intuition": "每个节点不再只有一个总分，而是保留完整目标向量，因此一个候选可以在某些目标领先、另一些目标落后。",
+      "role": "为 Pareto 支配比较提供信息，避免权重把目标冲突隐藏。",
+      "example": "候选 A=[0.9,0.5]、B=[0.7,0.7] 时，二者互不支配；加权和可能强行选出一个，但 Pareto 方法会保留两者。"
+    },
+    {
+      "id": 2,
+      "title": "UCB 的探索-利用形式",
+      "latex": "\\mathrm{UCB}_i=v_i+c\\sqrt{\\frac{\\ln N}{n_i}}",
+      "source": "第14页，Eq. (3)",
+      "variables": [
+        {
+          "symbol": "v_i",
+          "desc": "第 i 个动作/节点的平均价值。"
+        },
+        {
+          "symbol": "c",
+          "desc": "探索系数，控制探索未知节点的强度。"
+        },
+        {
+          "symbol": "N",
+          "desc": "总探索次数。"
+        },
+        {
+          "symbol": "n_i",
+          "desc": "当前节点被探索的次数。"
+        }
+      ],
+      "intuition": "平均价值高的节点会被利用，访问次数少的节点因探索项变大而获得机会。PMMG 把这一逻辑扩展为多目标向量比较。",
+      "role": "连接 MCTS 的节点选择与 Pareto 目标。",
+      "example": "同样平均价值下，访问少的节点 UCB 更高；这避免树搜索只重复已知路径。"
+    },
+    {
+      "id": 3,
+      "title": "Hypervolume 指标",
+      "latex": "HV_t=\\mathrm{volume}\\left(\\bigcup_{i=1}^{|PF_t|}v_i\\right)",
+      "source": "第14页，Eq. (4)",
+      "variables": [
+        {
+          "symbol": "PF_t",
+          "desc": "第 t 时刻得到的 Pareto 前沿。"
+        },
+        {
+          "symbol": "v_i",
+          "desc": "前沿中第 i 个解相对于参考点的支配区域。"
+        }
+      ],
+      "intuition": "HV 衡量前沿覆盖的目标空间体积，同时反映前沿质量和范围；越大通常越好。",
+      "role": "评价 PMMG 是否在多目标空间中获得更广、更好的 Pareto 前沿。",
+      "example": "如果一个方法只在一个目标方向有极端点，HV 可能不如覆盖多个折中方向的前沿。"
+    },
+    {
+      "id": 4,
+      "title": "Diversity 指标",
+      "latex": "Div=\\frac{2}{n(n-1)}\\sum_{x\\neq x'\\in G}(1-\\mathrm{sim}(x,x'))",
+      "source": "第14页，Eq. (5)",
+      "variables": [
+        {
+          "symbol": "G",
+          "desc": "生成分子集合。"
+        },
+        {
+          "symbol": "sim(x,x')",
+          "desc": "基于 Morgan 指纹的 Tanimoto 相似度。"
+        },
+        {
+          "symbol": "n",
+          "desc": "集合中分子数量。"
+        }
+      ],
+      "intuition": "平均相似度越低，1-sim 越高，Div 越大，说明生成结构更不相似。",
+      "role": "检查高性能是否以模式塌缩为代价。",
+      "example": "如果所有分子都几乎相同，sim≈1，Div 接近 0；结构差异越大，Div 越高。"
+    }
+  ],
+  "conclusions": {
+    "proven": [
+      {
+        "conclusion": "PMMG 在本文七目标计算基准中同时取得最高 HV、SR 和 Div。",
+        "evidence": "Table 1，第3–4页",
+        "strength": "中等",
+        "alternative": "基线训练、实现和预算差异可能影响数值。"
+      },
+      {
+        "conclusion": "PMMG 可产生具有不同目标折中的非支配候选，并保持较高结构多样性。",
+        "evidence": "Figure 2、Figure 3、Figure 4",
+        "strength": "中等",
+        "alternative": "UMAP 与 Div 仍依赖指纹和可视化设置。"
+      },
+      {
+        "conclusion": "在双靶点案例中，部分候选的 docking/ABFE/Genscore 优于拉帕替尼参考值。",
+        "evidence": "Figure 5–6、Tables 5–6",
+        "strength": "有限",
+        "alternative": "不同计算评分之间可能不一致，且未完成系统实验确认。"
+      }
+    ],
+    "speculated": [
+      {
+        "conclusion": "PMMG 可以通过多保真反馈逐渐接近真实实验效果。",
+        "evidence": "Discussion，第12页",
+        "strength": "推测",
+        "note": "作者提出未来方向，本文没有进行该实验。"
+      },
+      {
+        "conclusion": "PMMG 对高维目标数量比现有方法更具可扩展性。",
+        "evidence": "七目标基准与 Discussion",
+        "strength": "部分支持",
+        "note": "结果显示七目标优势，但没有系统改变目标数量的 scaling 曲线。"
+      }
+    ],
+    "notProven": [
+      {
+        "conclusion": "生成候选一定具有真实 EGFR/HER2 抑制活性。",
+        "type": "实验有效性",
+        "note": "docking、ABFE 和 Genscore 都不是完整湿实验。"
+      },
+      {
+        "conclusion": "PMMG 在所有数据集和所有目标数下都优于基线。",
+        "type": "外部有效性",
+        "note": "本文只报告特定基准和案例。"
+      },
+      {
+        "conclusion": "Pareto 前沿中的所有分子都同样适合实际开发。",
+        "type": "候选选择",
+        "note": "作者承认前沿可能过大，仍需偏好驱动筛选。"
+      }
+    ]
+  },
+  "innovation": {
+    "problem": {
+      "genuine": true,
+      "content": "把“多目标难以同时优化”具体化为避免标量化、保留 Pareto 前沿的问题。",
+      "note": "第1–2页。"
+    },
+    "theory": {
+      "genuine": true,
+      "content": "将 Pareto dominance 贯穿 Reward、UCB、子节点池和最终分子池，而非只在最终排序阶段使用。",
+      "note": "这是本文最核心的算法设计。"
+    },
+    "method": {
+      "genuine": true,
+      "content": "提出 Pareto Monte Carlo Tree Search Molecular Generation，把向量目标与 SMILES MCTS 结合。",
+      "note": "MCTS/RNN/Pareto 各自有先例，组合和节点池机制是主要贡献。"
+    },
+    "data": {
+      "genuine": false,
+      "content": "论文使用 ZINC 和既有性质预测器，没有提出新的实验数据集。",
+      "note": "数据创新不是本文重点。"
+    },
+    "technology": {
+      "genuine": true,
+      "content": "Reward 模型与搜索算法解耦，可接入 docking、FEP 和湿实验等多保真反馈。",
+      "note": "多保真整合在 Discussion 中是未来方向。"
+    },
+    "experiment": {
+      "genuine": true,
+      "content": "七目标基准、单目标分布、UMAP、合成可及性和双靶点多层评估形成较完整计算验证。",
+      "note": "仍缺系统前瞻湿实验。"
+    },
+    "application": {
+      "genuine": true,
+      "content": "面向 EGFR/HER2 双靶点候选，并把活性、ADMET、QED、SAScore 放入同一设计流程。",
+      "note": "应用价值是候选发现辅助。"
+    },
+    "comparison": "相对于加权 Reward 或仅优化少量目标的方法，PMMG 的新增点是把非支配逻辑放入 MCTS 中间节点和最终分子池，并直接输出一组 Pareto 候选。",
+    "overhype": "“超过拉帕替尼”只在 docking/ABFE/Genscore 等计算指标上成立；不能直接宣传为真实药效优于拉帕替尼。"
+  },
+  "limitations": {
+    "studyDesign": {
+      "目标数量": "七目标结果有说服力，但没有系统报告随目标数从 2 到 10 变化的 scaling 曲线。",
+      "基线公平性": "各基线来自公开代码，训练细节和计算预算的完全一致性需复查。",
+      "候选选择": "最终 Pareto 前沿可能很大，用户偏好如何进入选择尚未解决。"
+    },
+    "data": {
+      "训练数据": "RNN 使用 ZINC 约 250,000 个化合物；性质预测器来自既有数据和模型。",
+      "标签质量": "预测标签和模拟分数的误差会直接成为 Reward 信号。",
+      "新颖性": "Tanimoto<0.7 只能说明相对指纹不相似，不保证化学新颖性或可合成性。"
+    },
+    "method": {
+      "表示限制": "SMILES/RNN 可能受长序列、语法、手性和长程依赖限制。",
+      "计算成本": "10,000 分子约 16 小时，明显高于基线。",
+      "Pareto 池": "非支配池会越来越大，搜索和后处理成本可能增加。"
+    },
+    "results": {
+      "统计": "表格报告均值±波动，但没有对全部方法做统一显著性检验。",
+      "模拟外推": "docking、ABFE、Genscore 之间并非独立证据，可能共享模型/结构偏差。",
+      "实验意义": "没有系统湿实验验证真实抑制活性、选择性、毒性或药代动力学。"
+    },
+    "externalValidity": {
+      "任务迁移": "EGFR/HER2 案例不能代表所有蛋白靶点或化学空间。",
+      "硬件迁移": "运行时间依赖硬件、实现和 MCTS 设置。",
+      "安全性": "论文未提供毒性实验或临床安全结论。"
+    }
+  },
+  "critique": {
+    "strengths": [
+      "针对高维多目标的痛点明确，方法结构与问题匹配。",
+      "Pareto 逻辑贯穿 Reward、UCB、节点池和分子池。",
+      "七目标基准之外还有 UMAP、合成可及性、docking、ABFE、Genscore 多层检查。",
+      "代码地址和主要 RNN 参数公开。"
+    ],
+    "weaknesses": [
+      "高质量结果依赖性质预测器和模拟评分。",
+      "PMMG 计算成本明显更高，论文未给出质量/时间的系统 Pareto 曲线。",
+      "部分公式和 MCTS 参数需要从代码补全。",
+      "最终如何从巨大 Pareto 前沿选择一个可开发分子仍是开放问题。"
+    ],
+    "topThreeQuestions": [
+      "如果目标数继续增加，非支配节点池是否会失去选择压力？",
+      "PMMG 的收益有多少来自 Pareto 机制，有多少来自 RNN 或预测器差异？",
+      "双靶点候选的 docking/ABFE 优势能否在体外结合和细胞实验中复现？"
+    ],
+    "futureDirections": [
+      "进行目标数量和计算预算的 scaling study。",
+      "用图/3D 表示或 Transformer 替代/增强 1D SMILES RNN。",
+      "把用户偏好、方向性 Pareto 搜索和多保真实验反馈纳入候选选择。",
+      "开展前瞻湿实验验证，并报告 IC50、选择性、毒性和合成成功率。"
+    ],
+    "overallRating": "较强（算法与计算证据）",
+    "ratingReason": "PMMG 对高维多目标分子生成提出了清晰且内在一致的 Pareto-MCTS 方案，七目标基准结果突出；但真实药物价值、计算成本与 Pareto 候选选择仍限制其结论外推。"
+  },
+  "reproducibility": {
+    "available": [
+      {
+        "item": "PMMG 代码",
+        "detail": "作者公开 GitHub 仓库",
+        "source": "https://github.com/Liuyifeii/PMMG"
+      },
+      {
+        "item": "RNN 结构",
+        "detail": "81 embedding、2×256 GRU",
+        "source": "第13页 Methods"
+      },
+      {
+        "item": "RNN 训练配置",
+        "detail": "lr=0.01、batch=256、100 epochs、ZINC≈250k",
+        "source": "第13页 Methods"
+      },
+      {
+        "item": "评价公式",
+        "detail": "HV、SR、Div 及 Pareto 定义",
+        "source": "第13–14页"
+      },
+      {
+        "item": "双靶点流程",
+        "detail": "Glide、ADMETlab2.0、NAMD3/BFEE、Genscore",
+        "source": "第8–12页"
+      }
+    ],
+    "partiallyDescribed": [
+      {
+        "item": "MCTS",
+        "detail": "说明四步流程、UCB 和非支配池",
+        "missing": "完整搜索轮数、探索系数 c、停止条件需查代码"
+      },
+      {
+        "item": "基线",
+        "detail": "公开代码比较，统一生成 10,000 个分子",
+        "missing": "各基线训练/采样配置和硬件公平性需复核"
+      },
+      {
+        "item": "性质预测器",
+        "detail": "引用既有模型和数据",
+        "missing": "每个预测器的具体训练集、误差和版本未在主文完整展开"
+      }
+    ],
+    "notProvided": [
+      {
+        "item": "湿实验验证",
+        "detail": "没有系统的 IC50、选择性、毒性或药代实验",
+        "impact": "不能确认真实药物效果"
+      },
+      {
+        "item": "完整运行环境锁定",
+        "detail": "未在主文给出完整依赖版本和容器",
+        "impact": "复现可能受软件版本影响"
+      }
+    ],
+    "difficulties": [
+      "需要获得 PMMG GitHub、预测器和基线代码的兼容版本。",
+      "MCTS 的随机性和非支配池大小会影响结果。",
+      "docking/ABFE 需要蛋白结构、力场、NAMD/BFEE 配置和较大计算资源。",
+      "Table 4 的结构图、Figure 5/6 的数值不能只依赖文本抽取，应同时保存论文截图。"
+    ]
+  },
+  "glossary": [
+    {
+      "zh": "Pareto 支配",
+      "en": "Pareto dominance",
+      "abbr": "—",
+      "meaning": "一个解所有目标不差且至少一个更好。",
+      "plain": "一个候选全面压过另一个候选。"
+    },
+    {
+      "zh": "Pareto 前沿",
+      "en": "Pareto frontier",
+      "abbr": "PF",
+      "meaning": "所有非支配解在目标空间形成的前沿。",
+      "plain": "没有一个候选能在所有方面同时胜过它们。"
+    },
+    {
+      "zh": "蒙特卡洛树搜索",
+      "en": "Monte Carlo Tree Search",
+      "abbr": "MCTS",
+      "meaning": "通过树节点选择、扩展、模拟、回传进行搜索。",
+      "plain": "在巨大分子树里把计算花在更有希望的路径上。"
+    },
+    {
+      "zh": "上置信界",
+      "en": "Upper Confidence Bound",
+      "abbr": "UCB",
+      "meaning": "结合平均收益和探索项的节点评分。",
+      "plain": "既看过去表现，也给少尝试的节点机会。"
+    },
+    {
+      "zh": "超体积",
+      "en": "Hypervolume Indicator",
+      "abbr": "HV",
+      "meaning": "Pareto 前沿覆盖的目标空间体积。",
+      "plain": "前沿覆盖得广不广、好不好。"
+    },
+    {
+      "zh": "成功率",
+      "en": "Success Rate",
+      "abbr": "SR",
+      "meaning": "同时满足所有目标标准的分子比例。",
+      "plain": "七项要求一次都达标的比例。"
+    },
+    {
+      "zh": "合成可及性评分",
+      "en": "Synthetic Accessibility Score",
+      "abbr": "SAScore",
+      "meaning": "分子合成难度相关评分，低值通常更好。",
+      "plain": "这个分子现实中好不好做。"
+    },
+    {
+      "zh": "定量药物相似性",
+      "en": "Quantitative Estimate of Drug-likeness",
+      "abbr": "QED",
+      "meaning": "综合药物样性质的评分。",
+      "plain": "像不像一个具备常见药物属性的分子。"
+    },
+    {
+      "zh": "绝对结合自由能",
+      "en": "Absolute Binding Free Energy",
+      "abbr": "ABFE",
+      "meaning": "模拟估计配体和蛋白结合自由能。",
+      "plain": "结合过程在能量上是否有利。"
+    },
+    {
+      "zh": "门控图卷积网络",
+      "en": "Gated Graph Convolutional Network",
+      "abbr": "GatedGCN",
+      "meaning": "Genscore 使用的蛋白-配体重评分模型之一。",
+      "plain": "用图神经网络重新评估结合潜力。"
+    }
+  ],
+  "references": {
+    "total": "论文参考文献涵盖多目标分子生成、Pareto 优化、MCTS、分子指纹、对接、自由能和药物性质预测。以下列出网页中直接使用的关键条目，完整列表请以论文第15页及正文引用为准。",
+    "key": [
+      {
+        "num": 5,
+        "citation": "MARS、REINVENT 等多目标/强化学习分子生成方法",
+        "topic": "基线方法"
+      },
+      {
+        "num": 9,
+        "citation": "Pareto optimality 概念",
+        "topic": "多目标优化"
+      },
+      {
+        "num": 13,
+        "citation": "Coulom (2006), Monte Carlo Tree Search",
+        "topic": "MCTS"
+      },
+      {
+        "num": 15,
+        "citation": "Ertl & Schuffenhauer (2009), SAScore",
+        "topic": "合成可及性"
+      },
+      {
+        "num": 16,
+        "citation": "Bickerton et al. (2012), QED",
+        "topic": "药物相似性"
+      },
+      {
+        "num": 23,
+        "citation": "Thakkar et al. (2020), AiZynthFinder",
+        "topic": "逆合成"
+      },
+      {
+        "num": 27,
+        "citation": "Friesner et al. (2004), Glide",
+        "topic": "分子对接"
+      },
+      {
+        "num": 33,
+        "citation": "Shen et al. (2023), Genscore",
+        "topic": "蛋白-配体重评分"
+      }
+    ],
+    "note": "网页对图表和结论的解释以 PMMG 原文为依据，未将参考文献扩展成新的证据。"
+  },
+  "advisorReport": {
+    "elevator": "PMMG 将 Pareto 非支配原则嵌入 RNN+MCTS：Reward 和 UCB 都保留为多维向量，每个父节点只保留非支配子节点，最终输出非支配分子池。七目标基准中 SR=51.65%，HV=0.569，Div=0.930；EGFR/HER2 案例显示部分候选的计算结合表现优于拉帕替尼，但真实药效仍需实验。",
+    "background": "多目标药物设计常用加权标量 Reward，目标数增加后会掩盖单项缺陷并限制搜索。",
+    "method": "RNN 生成 SMILES，MCTS 选择/扩展/模拟/回传，Pareto 支配关系更新节点池和分子池。",
+    "results": "七目标指标全面领先；PMMG 结构空间覆盖广，AiZynthFinder 合成成功率 74.33%；双靶点中 2.96% 分子同时超过拉帕替尼 docking 阈值。",
+    "significance": "提供了一个不依赖手工权重、能处理较多目标的分子生成搜索框架。",
+    "limitations": "计算成本高，Pareto 前沿难选，结果依赖预测器/模拟，1D SMILES 与 RNN 有限制。",
+    "recommendation": "汇报时按 Figure 1→Table 1→Figure 6 讲算法、基准和应用，并把 docking/ABFE 与真实实验分开。"
+  },
+  "defenseQA": [
+    {
+      "question": "PMMG 与把多个目标加权求和有什么根本区别？",
+      "answer": "加权和把候选压成一个标量，权重选择会决定哪些目标被牺牲；PMMG 保留目标向量，用 Pareto dominance 删除全面较差的候选，保留不同折中的非支配解。"
+    },
+    {
+      "question": "为什么 UCB 也要改成向量？",
+      "answer": "如果 Reward 是向量而 UCB 仍是标量，节点选择仍会回到单一排序。向量 UCB 让探索/利用的节点比较也遵循多目标非支配逻辑。"
+    },
+    {
+      "question": "SR=51.65% 如何理解？",
+      "answer": "在七目标阈值标准下，生成分子中约一半同时达标。它不是某一个目标的准确率，也不说明真实实验成功率。"
+    },
+    {
+      "question": "PMMG 是否真的证明超过拉帕替尼？",
+      "answer": "只在指定 docking、ABFE 或 Genscore 计算指标上部分超过；Table 5 中 Molecule 2 的 EGFR ABFE 甚至明显弱于拉帕替尼，因此不能推断整体药效优于拉帕替尼。"
+    },
+    {
+      "question": "HV、SR、Div 为什么要同时报告？",
+      "answer": "SR 看达标比例，HV 看 Pareto 前沿覆盖质量，Div 看结构是否塌缩；只看其中一个会漏掉其他维度的失败。"
+    },
+    {
+      "question": "下一步最关键的实验是什么？",
+      "answer": "对 Pareto 池中按偏好筛出的候选做 EGFR/HER2 体外结合和细胞抑制实验，并同时测试选择性、毒性和合成路线。"
+    }
+  ]
+};
+
+// ============================================================
+// 渲染函数与交互逻辑
+// ============================================================
+const D = PAPER_DATA;
+const main = document.getElementById('mainContent');
+
+// 工具函数
+function el(tag, attrs={}, children=[]) {
+  const e = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of (Array.isArray(children)?children:[children])) {
+    if (c == null) continue;
+    if (typeof c === 'string' || typeof c === 'number') {
+      e.appendChild(document.createTextNode(String(c)));
+    } else {
+      e.appendChild(c);
+    }
+  }
+  return e;
+}
+function section(id, title, num) {
+  return el('section', {class:'content-section', id}, [
+    el('h2', {}, [num ? el('span',{class:'section-num'},num) : null, title])
+  ]);
+}
+function sourceBadge(text) { return el('span',{class:'source-badge'}, text); }
+
+// 渲染论文概览
+function renderOverview() {
+  const s = section('overview','论文概览','01');
+  const info = D.info;
+  const grid = el('div',{class:'info-grid'});
+  const items = [
+    ['英文标题', info.titleEn], ['中文标题', info.titleZh],
+    ['作者', info.authors], ['期刊/会议', info.journal],
+    ['发表年份', info.year + '（' + info.volume + '）'],
+    ['DOI', el('a',{href:info.url,target:'_blank'}, info.doi)],
+    ['研究领域', info.field], ['关键词', info.keywords],
+    ['论文类型', info.paperType], ['研究对象', info.researchObject],
+    ['研究问题', info.researchQuestion], ['主要结论', info.mainConclusion],
+    ['适合人群', info.audience], ['证据等级', info.evidenceLevel]
+  ];
+  for (const [label, value] of items) {
+    grid.appendChild(el('div',{class:'info-item'}, [
+      el('div',{class:'info-label'}, label),
+      el('div',{class:'info-value'}, [value])
+    ]));
+  }
+  s.appendChild(grid);
+  main.appendChild(s);
+}
+
+// 渲染一句话总结
+function renderSummary() {
+  const s = section('summary','核心矛盾与论文答案','02');
+  s.appendChild(el('div',{class:'summary-hero'},[el('div',{class:'label'},'📌 论文一句话总结'),el('div',{class:'text',html:D.oneSentence})]));
+  s.appendChild(el('div',{class:'paper-hook'},[
+    el('div',{class:'hook-card risk'},[el('div',{class:'hook-kicker'},'Failure mode'),el('div',{class:'hook-title'},'标量化会遮蔽缺陷'),el('p',{class:'hook-copy'},'一个加权总分可能让某个目标很差的分子，因为其他目标高分而被选中。')]),
+    el('div',{class:'hook-card tension'},[el('div',{class:'hook-kicker'},'Search tension'),el('div',{class:'hook-title'},'高维 Pareto 前沿'),el('p',{class:'hook-copy'},'目标越多，折中方案越多；只选一个最高分节点会丢掉其他方向的好解。')]),
+    el('div',{class:'hook-card answer'},[el('div',{class:'hook-kicker'},'PMMG answer'),el('div',{class:'hook-title'},'向量 Reward + 非支配池'),el('p',{class:'hook-copy'},'MCTS 的中间节点和最终分子都保留非支配解，再从前沿中选择候选。')])
+  ]));
+  const metrics=el('div',{class:'metric-grid'}); D.metrics.forEach(([v,l,sub])=>metrics.appendChild(el('div',{class:'metric-card'},[el('div',{class:'metric-value'},v),el('div',{class:'metric-label'},l),el('div',{class:'metric-sub'},sub)]))); s.appendChild(metrics);
+  s.appendChild(el('div',{class:'card card-highlight'},[el('div',{class:'card-title'},'阅读 PMMG 的关键'),el('p',{},'不要把 PMMG 理解成“找到一个总分最高的分子”。它的输出是一组互不支配的候选：每个候选可能在 EGFR、通透性、QED、SAScore 等不同方向上占优。Table 1 评价的是这组前沿的覆盖、达标率和多样性。')]));
+  main.appendChild(s);
+}
+
+// 渲染整体流程
+function renderFlow() {
+  const s = section('flow','整体研究流程','03');
+  const chart = el('div',{class:'flow-chart'});
+  D.flow.forEach((step, i) => {
+    const cls = 'flow-step ' + (i>=5 && i<=7 ? 'result' : (i===8 ? 'limitation' : (i===3 ? 'highlight' : '')));
+    chart.appendChild(el('div',{class:cls}, [
+      el('div',{class:'step-num'}, step.num),
+      el('div',{class:'step-title'}, step.title),
+      el('div',{class:'step-desc'}, step.desc)
+    ]));
+    if (i < D.flow.length - 1) chart.appendChild(el('div',{class:'flow-arrow'}));
+  });
+  s.appendChild(chart);
+  main.appendChild(s);
+}
+
+// 渲染核心发现与问题
+function renderKeyFindings() {
+  const s = section('key-findings','核心发现与需警惕的问题','04');
+  // 三个最重要发现
+  s.appendChild(el('h3',{}, '✅ 三个最重要的发现'));
+  const fList = el('div',{class:'card card-success'});
+  D.keyFindings.forEach((f, i) => {
+    fList.appendChild(el('div',{style:'margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border-light)'}, [
+      el('strong',{}, (i+1)+'. '),
+      document.createTextNode(f)
+    ]));
+  });
+  s.appendChild(fList);
+  // 三个最需警惕的问题
+  s.appendChild(el('h3',{}, '⚠️ 三个最需要警惕的问题'));
+  const qList = el('div',{class:'card card-warning'});
+  D.keyQuestions.forEach((q, i) => {
+    qList.appendChild(el('div',{style:'margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border-light)'}, [
+      el('strong',{}, (i+1)+'. '),
+      document.createTextNode(q)
+    ]));
+  });
+  s.appendChild(qList);
+  main.appendChild(s);
+}
+
+// 渲染阅读建议
+function renderReadingGuide() {
+  const s = section('reading-guide','阅读建议','05');
+  const g = D.readingGuide;
+  const items = [
+    ['📖 应先看哪些部分', g.firstRead],
+    ['📊 哪些图表最关键', g.keyFigures],
+    ['🧩 哪些章节较难', g.hardSections],
+    ['🔍 哪些结论需要谨慎理解', g.cautiousConclusions]
+  ];
+  for (const [title, content] of items) {
+    s.appendChild(el('div',{class:'card'}, [
+      el('div',{class:'card-title'}, title),
+      el('p',{}, content)
+    ]));
+  }
+  main.appendChild(s);
+}
+
+// 渲染简明摘要
+function renderAbstracts() {
+  const s = section('abstracts','简明摘要','06');
+  D.abstracts.forEach(a => s.appendChild(el('div',{class:'collapsible'}, [el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [el('span',{}, a.title), el('span',{class:'arrow'}, '▶')]), el('div',{class:'collapsible-body'}, [el('p',{}, a.content)])])));
+  main.appendChild(s);
+}
+
+// 渲染分章节精读
+function renderSections() {
+  const s = section('sections','分章节精读','07');
+  const order = D.sectionOrder || Object.keys(D.sections);
+  order.forEach(key => {
+    const sec = D.sections[key];
+    const secEl = el('div',{class:'collapsible', id:'sec-'+key}, [el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [el('span',{}, sec.title+' '), sourceBadge(sec.source), el('span',{class:'arrow',style:'margin-left:auto'},'▶')]), el('div',{class:'collapsible-body'})]);
+    const body = secEl.querySelector('.collapsible-body');
+    body.appendChild(el('h4',{},'A. 原文主要内容')); body.appendChild(el('p',{},sec.content));
+    body.appendChild(el('h4',{},'B. 中英文对照'));
+    const table=el('div',{class:'table-wrapper'}), tbl=el('table'); tbl.appendChild(el('thead',{},el('tr',{},[el('th',{},'English original or key sentence'),el('th',{},'中文翻译解释')])));
+    const tbody=el('tbody'); sec.keySentences.forEach(x=>tbody.appendChild(el('tr',{},[el('td',{},x.en),el('td',{},x.zh)]))); tbl.appendChild(tbody); table.appendChild(tbl); body.appendChild(table);
+    [['C. 这一部分回答了什么问题？',sec.answers],['E. 逻辑关系',sec.logic],['F. 阅读重点',sec.focus],['G. 潜在问题',sec.issues]].forEach(([t,c])=>{body.appendChild(el('h4',{},t));body.appendChild(el('p',{},c));});
+    body.appendChild(el('h4',{},'D. 关键概念解释')); const ct=el('div',{class:'table-wrapper'}), ctbl=el('table'); ctbl.appendChild(el('thead',{},el('tr',{},[el('th',{},'术语英文'),el('th',{},'中文'),el('th',{},'解释')] ))); const cb=el('tbody'); sec.concepts.forEach(c=>cb.appendChild(el('tr',{},[el('td',{},c.en),el('td',{},c.zh),el('td',{},c.desc)]))); ctbl.appendChild(cb); ct.appendChild(ctbl); body.appendChild(ct); s.appendChild(secEl);
+  });
+  main.appendChild(s);
+}
+
+// 渲染方法详细解析
+function renderMethodDeep() {
+  const s = section('method-deep','方法详细解析','08');
+  const m = D.methodDeep;
+  const items = [
+    ['研究设计', m.design], ['研究对象', m.studyObject],
+    ['样本量', m.sampleSize], ['样本获取', m.sampleAcquisition],
+    ['对照组', m.controlGroup],
+    ['自变量/因变量/控制变量', JSON.stringify(m.variables, null, 2)],
+    ['实验流程', m.workflow], ['数据来源', m.dataSource],
+    ['数据预处理', m.preprocessing], ['统计/机器学习方法', m.statisticalMethods],
+    ['模型输入输出', JSON.stringify(m.modelIO, null, 2)],
+    ['评价指标', m.metrics], ['验证与消融', m.validation],
+    ['方法是否足以支持结论', m.methodSufficiency], ['潜在偏差', m.biases]
+  ];
+  for (const [label, content] of items) {
+    s.appendChild(el('div',{class:'collapsible'}, [
+      el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [
+        el('span',{}, label),
+        el('span',{class:'arrow', style:'margin-left:auto'}, '▶')
+      ]),
+      el('div',{class:'collapsible-body'}, [el('pre',{style:'white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.7'}, content)])
+    ]));
+  }
+  // 模型架构详情
+  s.appendChild(el('h3',{}, '🏗️ 模型架构详情'));
+  const arch = D.modelArchitecture;
+  const archItems = [
+    ['模型输入', arch.input], ['模型结构', arch.structure],
+    ['训练过程', arch.training], ['损失函数', arch.loss],
+    ['优化方法', arch.optimization], ['超参数', arch.hyperparameters],
+    ['基线模型', arch.baselines], ['评价指标', arch.metrics],
+    ['模型优点', arch.advantages], ['模型缺点', arch.disadvantages],
+    ['复现所需信息', arch.reproducibility]
+  ];
+  for (const [label, content] of archItems) {
+    s.appendChild(el('div',{class:'card'}, [
+      el('div',{class:'card-title'}, label),
+      el('p',{}, content)
+    ]));
+  }
+  main.appendChild(s);
+}
+
+// 渲染图表解析
+function renderFigures() {
+  const sec=section('figures','图表截图、原文图注翻译与详细解析','09');
+  D.figures.forEach((fig,idx)=>{
+    const fe=el('div',{class:'collapsible',id:'fig'+fig.id},[el('div',{class:'collapsible-header',onclick:function(){this.parentElement.classList.toggle('open')}},[el('span',{},`Figure ${fig.id}：${fig.title}`),sourceBadge(fig.page),el('span',{class:'arrow',style:'margin-left:auto'},'▶')]),el('div',{class:'collapsible-body'})]);
+    const body=fe.querySelector('.collapsible-body');
+    body.appendChild(el('div',{class:'figure-shot'},[el('img',{src:fig.image,alt:`Figure ${fig.id} original page screenshot`,loading:'lazy'}),el('div',{class:'figure-shot-note'},'原文页面截图；点击图片可放大。') ]));
+    body.querySelector('img').addEventListener('click',()=>openFigureModal(fig.image));
+    body.appendChild(el('h4',{},'原文图注（English）')); body.appendChild(el('p',{class:'caption-en'},fig.captionEn));
+    body.appendChild(el('h4',{},'图注中文翻译')); body.appendChild(el('p',{class:'caption-zh'},fig.captionZh));
+    body.appendChild(el('h4',{},'图展示了什么？')); body.appendChild(el('p',{},fig.description));
+    body.appendChild(el('h4',{},'坐标轴、颜色与图例')); body.appendChild(el('p',{},[el('strong',{},'坐标轴：'),fig.axes])); body.appendChild(el('p',{},[el('strong',{},'图例：'),fig.legend]));
+    body.appendChild(el('h4',{},'子图逐一解析')); Object.entries(fig.subplots).forEach(([k,v])=>body.appendChild(el('div',{class:'card',style:'margin-bottom:8px'},[el('div',{class:'card-title',style:'font-size:13px'},'子图 '+k),el('p',{style:'font-size:13px;margin-bottom:0'},v)])));
+    [['最重要的趋势',fig.trend],['统计显著性',fig.significance],['误差条/不确定性',fig.errorBars],['如何支持论文结论',fig.support],['其他可能解释',fig.alternative]].forEach(([t,v])=>{body.appendChild(el('h4',{},t));body.appendChild(el('p',{},v));});
+    body.appendChild(el('div',{class:'card card-highlight'},[el('div',{class:'card-title'},'一句话总结'),el('p',{style:'margin-bottom:0;font-weight:600'},fig.summary)]));
+    const tab=el('div',{class:'table-wrapper'}),tbl=el('table'); tbl.appendChild(el('thead',{},el('tr',{},[el('th',{},'中文字段'),el('th',{},'English')] ))); const tb=el('tbody'); Object.entries(fig.zhEn).forEach(([zh,en])=>tb.appendChild(el('tr',{},[el('td',{},zh),el('td',{},en)]))); tbl.appendChild(tb);tab.appendChild(tbl);body.appendChild(el('h4',{},'中英文关键字段'));body.appendChild(tab);sec.appendChild(fe);
+  }); main.appendChild(sec);
+}
+
+function renderTableShots() {
+  const sec = section('table-shots','表格截图与逐表解析','10');
+  const tables = [
+    {id:'Table 1', page:'第4页', image:'pmmg_assets/page-04.png', title:'八种方法的七目标总体比较', caption:'Comparison of eight different molecule generation methods under the scenario of optimizing seven targets simultaneously.', zh:'在同时优化七个目标的场景下比较八种分子生成方法。', analysis:'PMMG 的 HV=0.569±0.054、SR=51.65%±0.78%、Div=0.930±0.005，三项均为表中最高。相对最佳基线，正文报告 HV 提高 31.4%，SR 约为 2.5 倍。解读时要区分三项指标：HV 关注 Pareto 前沿覆盖，SR 关注全部达标比例，Div 关注结构差异。表格支持“整体多目标表现更强”，但不能单独证明真实实验优势。'},
+    {id:'Table 2', page:'第6页', image:'pmmg_assets/page-06.png', title:'AiZynthFinder 合成可及性', caption:'Analysis of the synthesizability of model-generated molecules using AiZynthFinder.', zh:'使用 AiZynthFinder 分析模型生成分子的可合成性。', analysis:'PMMG 合成成功率 74.33±2.03%，低于 REINVENT 的 76.34±0.46%，高于 SMILES_GA、SMILES_VAE、MARS、Graph_GA 和 Graph_MCTS。作者对每种方法随机抽取 100 个分子并重复 3 次，因此该表是抽样估计，不是全部 10,000 个分子的真实合成率。'},
+    {id:'Table 3', page:'第8页', image:'pmmg_assets/page-08.png', title:'EGFR/HER2 双靶点筛选标准', caption:'Criteria of objectives.', zh:'双靶点设计中各优化目标的筛选标准。', analysis:'Table 3 是硬筛选门槛：EGFR/HER2>5.5，溶解度>-3.5，通透性>0.4，代谢稳定性>45，毒性<3，QED>0.6，SAScore<4。它决定了 2,000 个进入 docking 流程的候选集合，而不是最终药效结论。注意毒性和 SAScore 是越低越好，不能把所有列都按“越高越好”解释。'},
+    {id:'Table 4', page:'第9–10页', image:'pmmg_assets/page-09.png', image2:'pmmg_assets/page-10.png', title:'代表性双靶点候选的预测性质', caption:'Examples of Molecules with Predicted Properties Generated by PMMG.', zh:'PMMG 生成的代表性分子及其预测性质示例。', analysis:'Table 4 展示 EGFR、HER2、溶解度、通透性、代谢稳定性、毒性、QED 和 SAScore。多数示例满足 Table 3 门槛，且含有作者强调的 pyrimidine core。它的作用是展示候选样本和多目标折中，不是经过随机对照后得出的总体统计。'},
+    {id:'Table 5', page:'第12页', image:'pmmg_assets/page-12.png', title:'绝对结合自由能（ABFE）', caption:'The predicted absolute binding free energies for lapatinib and three designed molecules.', zh:'拉帕替尼和三个设计分子的预测绝对结合自由能。', analysis:'EGFR 上，拉帕替尼为 -11.70 kcal mol−1；Molecule 1 为 -8.58±4.06、Molecule 3 为 -7.42±0.52，均不如拉帕替尼，Molecule 2 的 -0.30±0.54 更弱。HER2 上，三个分子均比拉帕替尼 -10.82 更负，其中 Molecule 3 为 -13.86±0.49。该表揭示“双靶点优势”并不均匀，Molecule 2 不能作为 EGFR 强候选。'},
+    {id:'Table 6', page:'第12页', image:'pmmg_assets/page-12.png', title:'Genscore 重评分', caption:'Rescoring Results Using GenScore (GatedGCN_1.0).', zh:'使用 Genscore（GatedGCN_1.0）进行重评分的结果。', analysis:'EGFR 上 Molecule 2=37.74、Molecule 3=30.34，分别高于或接近拉帕替尼 31.43；Molecule 1=18.55 较低。HER2 上三个设计分子均高于拉帕替尼 20.80。Table 6 与 Table 5 共同说明不同计算指标会产生不同排序，因此更适合看作候选优先级证据，而不是确定性结论。'}
+  ];
+  tables.forEach(t=>{
+    const card=el('div',{class:'card table-shot-card'});
+    card.appendChild(el('div',{class:'card-title'},t.id+'：'+t.title+' '+sourceBadge(t.page)));
+    const imgs=[t.image].concat(t.image2?[t.image2]:[]);
+    imgs.forEach(src=>{const wrap=el('div',{class:'figure-shot'},[el('img',{src,alt:t.id+' original screenshot',loading:'lazy'}),el('div',{class:'figure-shot-note'},'原文表格所在页面截图')]);wrap.querySelector('img').addEventListener('click',()=>openFigureModal(src));card.appendChild(wrap);});
+    card.appendChild(el('div',{class:'caption-en'},t.caption)); card.appendChild(el('div',{class:'caption-zh'},t.zh));
+    card.appendChild(el('h4',{},'表格解读')); card.appendChild(el('p',{},t.analysis)); sec.appendChild(card);
+  });
+  main.appendChild(sec);
+}
+
+// 渲染公式解析
+function renderFormulas() {
+  const s = section('formulas','公式解析','10');
+  D.formulas.forEach((f, idx) => {
+    const fEl = el('div',{class:'collapsible open'}, [
+      el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [
+        el('span',{}, `公式 (${f.id})：${f.title}`),
+        sourceBadge(f.source),
+        el('span',{class:'arrow', style:'margin-left:auto'}, '▶')
+      ]),
+      el('div',{class:'collapsible-body'})
+    ]);
+    const body = fEl.querySelector('.collapsible-body');
+    // 公式
+    const fb = el('div',{class:'formula-block'});
+    fb.appendChild(el('div',{class:'formula-label'}, '公式 (' + f.id + ')'));
+    fb.appendChild(el('div',{html: '$$' + f.latex + '$$'}));
+    // 变量解释
+    const varDiv = el('div',{class:'formula-explanation'});
+    varDiv.appendChild(el('strong',{}, '变量解释：'));
+    const varList = el('div',{class:'var-list'});
+    for (const v of f.variables) {
+      varList.appendChild(el('div',{class:'var-item'}, [
+        el('span',{class:'var-symbol'}, v.symbol),
+        el('span',{}, v.desc)
+      ]));
+    }
+    varDiv.appendChild(varList);
+    // 直觉含义
+    varDiv.appendChild(el('br'));
+    varDiv.appendChild(el('strong',{}, '直觉含义：'));
+    varDiv.appendChild(el('p',{style:'margin-top:4px'}, f.intuition));
+    // 在论文中的作用
+    varDiv.appendChild(el('strong',{}, '在论文中的作用：'));
+    varDiv.appendChild(el('p',{style:'margin-top:4px'}, f.role));
+    // 简单例子
+    varDiv.appendChild(el('strong',{}, '简单计算示例：'));
+    varDiv.appendChild(el('p',{style:'margin-top:4px'}, f.example));
+    fb.appendChild(varDiv);
+    body.appendChild(fb);
+    s.appendChild(fEl);
+  });
+  main.appendChild(s);
+}
+
+// 渲染核心结论
+function renderConclusions() {
+  const s = section('conclusions','核心结论三层提炼','11');
+  const c = D.conclusions;
+  // 明确证明
+  s.appendChild(el('h3',{}, '✅ 第一层：论文明确证明或支持的内容'));
+  const t1 = el('div',{class:'table-wrapper'});
+  const tbl1 = el('table');
+  tbl1.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'结论'), el('th',{},'证据来源'), el('th',{},'证据强度'), el('th',{},'替代解释')])));
+  const tb1 = el('tbody');
+  for (const item of c.proven) {
+    tb1.appendChild(el('tr',{}, [
+      el('td',{}, item.conclusion),
+      el('td',{}, item.evidence),
+      el('td',{}, el('span',{class:'tag tag-evidence'}, item.strength)),
+      el('td',{}, item.alternative)
+    ]));
+  }
+  tbl1.appendChild(tb1); t1.appendChild(tbl1); s.appendChild(t1);
+  // 推测讨论
+  s.appendChild(el('h3',{}, '🤔 第二层：论文推测或讨论的内容'));
+  const t2 = el('div',{class:'table-wrapper'});
+  const tbl2 = el('table');
+  tbl2.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'结论'), el('th',{},'证据来源'), el('th',{},'证据强度'), el('th',{},'备注')])));
+  const tb2 = el('tbody');
+  for (const item of c.speculated) {
+    tb2.appendChild(el('tr',{}, [
+      el('td',{}, item.conclusion),
+      el('td',{}, item.evidence),
+      el('td',{}, el('span',{class:'tag tag-inference'}, item.strength)),
+      el('td',{}, item.note)
+    ]));
+  }
+  tbl2.appendChild(tb2); t2.appendChild(tbl2); s.appendChild(t2);
+  // 未证明
+  s.appendChild(el('h3',{}, '❌ 第三层：论文没有证明的内容'));
+  const t3 = el('div',{class:'table-wrapper'});
+  const tbl3 = el('table');
+  tbl3.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'未证明的结论'), el('th',{},'类型'), el('th',{},'说明')])));
+  const tb3 = el('tbody');
+  for (const item of c.notProven) {
+    tb3.appendChild(el('tr',{}, [
+      el('td',{}, item.conclusion),
+      el('td',{}, el('span',{class:'tag tag-evaluation'}, item.type)),
+      el('td',{}, item.note)
+    ]));
+  }
+  tbl3.appendChild(tb3); t3.appendChild(tbl3); s.appendChild(t3);
+  main.appendChild(s);
+}
+
+// 渲染创新点
+function renderInnovation() {
+  const s = section('innovation','创新点分析','12');
+  const inv = D.innovation;
+  const dims = [
+    ['研究问题创新', inv.problem], ['理论创新', inv.theory],
+    ['方法创新', inv.method], ['数据创新', inv.data],
+    ['技术创新', inv.technology], ['实验设计创新', inv.experiment],
+    ['应用价值创新', inv.application]
+  ];
+  for (const [label, data] of dims) {
+    s.appendChild(el('div',{class:'card'}, [
+      el('div',{class:'card-title'}, label + (data.genuine ? ' ✅' : ' ⚠️')),
+      el('p',{}, data.content),
+      el('p',{style:'margin-bottom:0;font-size:13px;color:var(--text-muted)'}, '📝 ' + data.note)
+    ]));
+  }
+  s.appendChild(el('h3',{}, '与已有研究相比的新贡献'));
+  s.appendChild(el('div',{class:'card card-highlight'}, [el('p',{}, inv.comparison)]));
+  s.appendChild(el('h3',{}, '是否存在过度宣传？'));
+  s.appendChild(el('div',{class:'card card-warning'}, [el('p',{}, inv.overhype)]));
+  main.appendChild(s);
+}
+
+// 渲染局限性与批判
+function renderLimitations() {
+  const s = section('limitations','局限性与批判性评价','13');
+  const lim = D.limitations;
+  const critique = D.critique;
+  // 各方面局限
+  const cats = [
+    ['研究设计', lim.studyDesign], ['数据', lim.data],
+    ['方法', lim.method], ['结果', lim.results],
+    ['外部有效性', lim.externalValidity]
+  ];
+  for (const [label, data] of cats) {
+    const catEl = el('div',{class:'collapsible'}, [
+      el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [
+        el('span',{}, '🔍 ' + label),
+        el('span',{class:'arrow', style:'margin-left:auto'}, '▶')
+      ]),
+      el('div',{class:'collapsible-body'})
+    ]);
+    const body = catEl.querySelector('.collapsible-body');
+    for (const [k, v] of Object.entries(data)) {
+      body.appendChild(el('div',{style:'margin-bottom:10px'}, [
+        el('strong',{style:'color:var(--primary)'}, k + '：'),
+        document.createTextNode(v)
+      ]));
+    }
+    s.appendChild(catEl);
+  }
+  // 论文优缺点
+  s.appendChild(el('h3',{}, '📋 论文优点'));
+  const ul1 = el('ul');
+  critique.strengths.forEach(x => ul1.appendChild(el('li',{}, x)));
+  s.appendChild(ul1);
+  s.appendChild(el('h3',{}, '⚠️ 论文缺点'));
+  const ul2 = el('ul');
+  critique.weaknesses.forEach(x => ul2.appendChild(el('li',{}, x)));
+  s.appendChild(ul2);
+  // 最关键三个问题
+  s.appendChild(el('h3',{}, '🎯 最关键的三个问题'));
+  critique.topThreeQuestions.forEach((q, i) => {
+    s.appendChild(el('div',{class:'card card-danger'}, [
+      el('div',{class:'card-title'}, '问题 ' + (i+1)),
+      el('p',{style:'margin-bottom:0'}, q)
+    ]));
+  });
+  // 未来方向
+  s.appendChild(el('h3',{}, '🚀 最值得后续研究的方向'));
+  const ul3 = el('ul');
+  critique.futureDirections.forEach(x => ul3.appendChild(el('li',{}, x)));
+  s.appendChild(ul3);
+  // 综合评价
+  s.appendChild(el('div',{class:'summary-hero'}, [
+    el('div',{class:'label'}, '🏆 综合评价'),
+    el('div',{class:'text', html: '评价等级：<strong>' + critique.overallRating + '</strong>'}),
+    el('p',{style:'margin-top:12px;font-size:14px;opacity:0.9'}, critique.ratingReason)
+  ]));
+  main.appendChild(s);
+}
+
+// 渲染复现指南
+function renderReproducibility() {
+  const s = section('reproducibility','复现指南','14');
+  const r = D.reproducibility;
+  // 已公开
+  s.appendChild(el('h3',{}, '✅ 已公开且可以直接获得'));
+  const t1 = el('div',{class:'table-wrapper'});
+  const tbl1 = el('table');
+  tbl1.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'项目'), el('th',{},'详情'), el('th',{},'来源')])));
+  const tb1 = el('tbody');
+  for (const item of r.available) {
+    tb1.appendChild(el('tr',{}, [el('td',{}, item.item), el('td',{}, item.detail), el('td',{}, item.source)]));
+  }
+  tbl1.appendChild(tb1); t1.appendChild(tbl1); s.appendChild(t1);
+  // 部分说明
+  s.appendChild(el('h3',{}, '⚠️ 论文中提到但没有充分说明'));
+  const t2 = el('div',{class:'table-wrapper'});
+  const tbl2 = el('table');
+  tbl2.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'项目'), el('th',{},'已说明的内容'), el('th',{},'缺失的信息')])));
+  const tb2 = el('tbody');
+  for (const item of r.partiallyDescribed) {
+    tb2.appendChild(el('tr',{}, [el('td',{}, item.item), el('td',{}, item.detail), el('td',{}, item.missing)]));
+  }
+  tbl2.appendChild(tb2); t2.appendChild(tbl2); s.appendChild(t2);
+  // 完全没有提供
+  s.appendChild(el('h3',{}, '❌ 论文完全没有提供'));
+  const t3 = el('div',{class:'table-wrapper'});
+  const tbl3 = el('table');
+  tbl3.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'项目'), el('th',{},'详情'), el('th',{},'影响')])));
+  const tb3 = el('tbody');
+  for (const item of r.notProvided) {
+    tb3.appendChild(el('tr',{}, [el('td',{}, item.item), el('td',{}, item.detail), el('td',{}, item.impact)]));
+  }
+  tbl3.appendChild(tb3); t3.appendChild(tbl3); s.appendChild(t3);
+  // 困难
+  s.appendChild(el('h3',{}, '🔧 复现时可能遇到的困难'));
+  const ul = el('ul');
+  r.difficulties.forEach(x => ul.appendChild(el('li',{}, x)));
+  s.appendChild(ul);
+  main.appendChild(s);
+}
+
+// 渲染术语表
+function renderGlossary() {
+  const s = section('glossary','中英文对照术语表','15');
+  const t = el('div',{class:'table-wrapper'});
+  const tbl = el('table');
+  tbl.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'中文术语'), el('th',{},'英文术语'), el('th',{},'缩写'), el('th',{},'本文中的含义'), el('th',{},'通俗解释')])));
+  const tb = el('tbody');
+  for (const g of D.glossary) {
+    tb.appendChild(el('tr',{}, [
+      el('td',{}, g.zh), el('td',{}, g.en), el('td',{}, g.abbr),
+      el('td',{}, g.meaning), el('td',{}, g.plain)
+    ]));
+  }
+  tbl.appendChild(tb); t.appendChild(tbl); s.appendChild(t);
+  main.appendChild(s);
+}
+
+// 渲染参考文献
+function renderReferences() {
+  const s = section('references','参考文献说明','16');
+  const r = D.references;
+  s.appendChild(el('p',{}, r.total));
+  s.appendChild(el('h3',{}, '关键参考文献'));
+  const t = el('div',{class:'table-wrapper'});
+  const tbl = el('table');
+  tbl.appendChild(el('thead',{}, el('tr',{}, [el('th',{},'编号'), el('th',{},'引用'), el('th',{},'相关主题')])));
+  const tb = el('tbody');
+  for (const ref of r.key) {
+    tb.appendChild(el('tr',{}, [el('td',{}, '['+ref.num+']'), el('td',{}, ref.citation), el('td',{}, ref.topic)]));
+  }
+  tbl.appendChild(tb); t.appendChild(tbl); s.appendChild(t);
+  s.appendChild(el('div',{class:'card card-warning'}, [el('p',{style:'margin-bottom:0'}, '📝 ' + r.note)]));
+  main.appendChild(s);
+}
+
+// 渲染导师汇报版
+function renderAdvisorReport() {
+  const s = section('advisor-report','导师汇报版总结','17');
+  const a = D.advisorReport;
+  const items = [
+    ['🎯 一句话电梯演讲', a.elevator],
+    ['📚 研究背景', a.background],
+    ['🔬 方法', a.method],
+    ['📊 结果', a.results],
+    ['💡 意义', a.significance],
+    ['⚠️ 局限', a.limitations],
+    ['✅ 建议', a.recommendation]
+  ];
+  for (const [title, content] of items) {
+    s.appendChild(el('div',{class:'card'}, [
+      el('div',{class:'card-title'}, title),
+      el('p',{style:'margin-bottom:0'}, content)
+    ]));
+  }
+  main.appendChild(s);
+}
+
+// 渲染答辩问题
+function renderDefenseQA() {
+  const s = section('defense-qa','答辩可能提问及参考回答','18');
+  D.defenseQA.forEach((qa, i) => {
+    s.appendChild(el('div',{class:'collapsible'}, [
+      el('div',{class:'collapsible-header', onclick:function(){this.parentElement.classList.toggle('open')}}, [
+        el('span',{}, 'Q' + (i+1) + ': ' + qa.question),
+        el('span',{class:'arrow', style:'margin-left:auto'}, '▶')
+      ]),
+      el('div',{class:'collapsible-body'}, [
+        el('div',{class:'card card-success'}, [
+          el('div',{class:'card-title'}, '💡 参考回答'),
+          el('p',{style:'margin-bottom:0'}, qa.answer)
+        ])
+      ])
+    ]));
+  });
+  main.appendChild(s);
+}
+
+// 渲染右侧栏
+function renderRightSidebar() {
+  // 关键结论
+  const kc = document.getElementById('keyConclusions');
+  D.keyFindings.forEach((f, i) => {
+    const card = el('div',{class:'key-conclusion-card', title:'点击复制'}, [
+      el('button',{class:'copy-btn', onclick:function(e){e.stopPropagation();copyText(f);}}, '📋'),
+      document.createTextNode(f.substring(0, 80) + (f.length > 80 ? '...' : ''))
+    ]);
+    card.addEventListener('click', () => copyText(f));
+    kc.appendChild(card);
+  });
+  // 核心术语
+  const kt = document.getElementById('keyTerms');
+  const keyTerms = D.glossary.slice(0, 8);
+  for (const t of keyTerms) {
+    kt.appendChild(el('div',{class:'term-item'}, [
+      el('div',{class:'term-en'}, t.en + (t.abbr !== '—' ? ' (' + t.abbr + ')' : '')),
+      el('div',{class:'term-zh'}, t.zh)
+    ]));
+  }
+  // 需警惕的问题
+  const kq = document.getElementById('keyQuestions');
+  D.keyQuestions.forEach(q => {
+    kq.appendChild(el('div',{class:'question-item'}, q.substring(0, 100) + (q.length > 100 ? '...' : '')));
+  });
+}
+
+// ========== 交互功能 ==========
+
+// 复制文本
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('已复制到剪贴板')).catch(() => showToast('复制失败'));
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// 主题切换
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('themeBtn').textContent = isDark ? '🌙' : '☀️';
+  localStorage.setItem('pmmg-theme', isDark ? 'light' : 'dark');
+}
+// 语言切换（简化版：切换body的data-lang属性）
+function toggleLang() {
+  const html = document.documentElement;
+  const cur = html.getAttribute('data-lang') || 'zh';
+  const next = cur === 'zh' ? 'en' : 'zh';
+  html.setAttribute('data-lang', next);
+  document.getElementById('langBtn').textContent = next === 'zh' ? '中/EN' : 'EN/中';
+  showToast(next === 'zh' ? '已切换到中文' : 'Switched to English (content primarily in Chinese)');
+}
+
+// 搜索
+let searchIndex = [];
+function buildSearchIndex() {
+  const sections = document.querySelectorAll('.content-section, .collapsible');
+  sections.forEach(sec => {
+    const text = sec.textContent.substring(0, 500);
+    const title = sec.querySelector('h2, h3, .collapsible-header, .card-title');
+    searchIndex.push({
+      id: sec.id || '',
+      title: title ? title.textContent.substring(0, 60) : sec.textContent.substring(0, 60),
+      text: text,
+      element: sec
+    });
+  });
+}
+function toggleSearch() {
+  document.getElementById('searchBox').classList.toggle('active');
+  const input = document.getElementById('searchInput');
+  if (document.getElementById('searchBox').classList.contains('active')) {
+    input.focus();
+  } else {
+    input.value = '';
+    document.getElementById('searchResults').classList.remove('show');
+  }
+}
+function doSearch(query) {
+  const results = document.getElementById('searchResults');
+  if (!query.trim()) { results.classList.remove('show'); return; }
+  const q = query.toLowerCase();
+  const matches = searchIndex.filter(item =>
+    item.title.toLowerCase().includes(q) || item.text.toLowerCase().includes(q)
+  ).slice(0, 10);
+  if (matches.length === 0) {
+    results.innerHTML = '<div class="search-result-item"><div class="sr-title">未找到结果</div></div>';
+  } else {
+    results.innerHTML = '';
+    matches.forEach(m => {
+      const snippet = m.text.replace(new RegExp(query, 'gi'), '<mark>$&</mark>').substring(0, 150);
+      const item = el('div',{class:'search-result-item'}, [
+        el('div',{class:'sr-title'}, m.title),
+        el('div',{class:'sr-snippet', html: snippet})
+      ]);
+      item.addEventListener('click', () => {
+        m.element.scrollIntoView({behavior:'smooth', block:'start'});
+        if (m.element.classList.contains('collapsible')) m.element.classList.add('open');
+        results.classList.remove('show');
+      });
+      results.appendChild(item);
+    });
+  }
+  results.classList.add('show');
+}
+
+// 阅读进度条
+function updateProgress() {
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+  document.getElementById('progress-bar').style.width = progress + '%';
+  // 更新目录高亮
+  const sections = document.querySelectorAll('.content-section, .collapsible[id]');
+  let current = '';
+  sections.forEach(sec => {
+    const rect = sec.getBoundingClientRect();
+    if (rect.top <= 150) current = sec.id;
+  });
+  document.querySelectorAll('.toc-item').forEach(item => {
+    item.classList.remove('active');
+    if (item.getAttribute('href') === '#' + current) item.classList.add('active');
+  });
+}
+
+// 移动端侧边栏
+function toggleSidebar() {
+  document.getElementById('sidebarLeft').classList.toggle('show');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+
+// 图表模态框
+function openFigureModal(src) {
+  document.getElementById('figureModalImg').src = src;
+  document.getElementById('figureModal').classList.add('show');
+}
+function closeFigureModal() {
+  document.getElementById('figureModal').classList.remove('show');
+}
+
+// 导出Markdown
+function exportMarkdown() {
+  let md = '# PMMG 论文精读笔记\n\n';
+  md += '## 论文信息\n\n';
+  for (const [k, v] of Object.entries(D.info)) {
+    md += `- **${k}**: ${v}\n`;
+  }
+  md += '\n## 一句话总结\n\n' + D.oneSentence + '\n\n';
+  md += '## 核心发现\n\n';
+  D.keyFindings.forEach((f, i) => md += `${i+1}. ${f}\n`);
+  md += '\n## 需警惕的问题\n\n';
+  D.keyQuestions.forEach((q, i) => md += `${i+1}. ${q}\n`);
+  md += '\n## 分章节精读\n\n';
+  for (const [key, sec] of Object.entries(D.sections)) {
+    md += `### ${sec.title}\n\n${sec.content}\n\n`;
+  }
+  md += '\n## 核心结论\n\n### 明确证明\n\n';
+  D.conclusions.proven.forEach(c => md += `- ${c.conclusion} (${c.evidence})\n`);
+  md += '\n### 推测讨论\n\n';
+  D.conclusions.speculated.forEach(c => md += `- ${c.conclusion} (${c.evidence})\n`);
+  md += '\n### 未证明\n\n';
+  D.conclusions.notProven.forEach(c => md += `- ${c.conclusion}: ${c.note}\n`);
+  md += '\n## 综合评价: ' + D.critique.overallRating + '\n\n' + D.critique.ratingReason + '\n';
+  const blob = new Blob([md], {type:'text/markdown'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'PMMG_论文精读笔记.md';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Markdown已导出');
+}
+
+// ========== 初始化 ==========
+function init() {
+  // 恢复主题
+  const savedTheme = localStorage.getItem('pmmg-theme');
+  if (savedTheme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.getElementById('themeBtn').textContent = '☀️';
+  }
+  // 渲染所有内容
+  renderOverview();
+  renderSummary();
+  renderFlow();
+  renderKeyFindings();
+  renderReadingGuide();
+  renderAbstracts();
+  renderSections();
+  renderMethodDeep();
+  renderFigures();
+  renderTableShots();
+  renderFormulas();
+  renderConclusions();
+  renderInnovation();
+  renderLimitations();
+  renderReproducibility();
+  renderGlossary();
+  renderReferences();
+  renderAdvisorReport();
+  renderDefenseQA();
+  renderRightSidebar();
+  // 构建搜索索引
+  setTimeout(buildSearchIndex, 500);
+  // 事件监听
+  window.addEventListener('scroll', updateProgress);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.search-box')) {
+      document.getElementById('searchResults').classList.remove('show');
+    }
+  });
+  // MathJax排版
+  if (window.MathJax) {
+    MathJax.typesetPromise();
+  }
+  updateProgress();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

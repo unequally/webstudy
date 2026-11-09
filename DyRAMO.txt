@@ -1,0 +1,1037 @@
+
+
+===== PAGE 1 =====
+Article https://doi.org/10.1038/s41467-025-57582-3
+A data-driven generative strategy to avoid
+reward hacking in multi-objective
+molecular design
+Tatsuya Yoshizawa 1,2, Shoichi Ishida 1, Tomohiro Sato 2, Masateru Ohta3,
+Teruki Honma2 &K e iT e r a y a m a1,4,5
+Molecular design using data-driven generative models has emerged as a pro-
+mising technology, impacting variousﬁelds such as drug discovery and the
+development of functional materials. However, this approach is often sus-
+ceptible to optimization failure due to reward hacking, where prediction
+models fail to extrapolate, i.e., fail to accurately predict properties for
+designed molecules that considerably deviate from the training data. While
+methods for estimating prediction reliability, such as the applicability domain
+(AD), have been used for mitigating reward hacking, multi-objective optimi-
+zation makes it challenging. The difﬁculty arises from the need to determine in
+advance whether the multiple ADs with some reliability levels overlap in che-
+mical space, and to appropriately adjust the reliability levels for each property
+prediction. Herein, we propose a reliable design framework to perform multi-
+objective optimization using generative models while preventing reward
+hacking. To demonstrate the effectiveness of the proposed framework, we
+designed candidates for anticancer drugs as a typical example of multi-
+objective optimization. We successfully designed molecules with high pre-
+dicted values and reliabilities, including an approved drug. In addition, the
+reliability levels can be automatically adjusted according to the property
+prioritization speciﬁed by the user without any detailed settings.
+Molecular design using generative models has recently gained sig-
+niﬁcant attention as a promising technology1– 3. This approach has been
+applied to diverse ﬁelds, such as drug discovery4– 10 and the develop-
+ment of functional materials11– 19. Such a design can be formulated as an
+inverse problem1, i.e., designing molecules with desired properties.
+The key is to evaluate the designed molecules (calculate the reward
+function) using methods like molecular simulation or data-driven
+predictive modeling, to guide the design process. While simulation-
+based evaluation, grounded in physicochemical principles, is generally
+accurate, it can be computationally expensive. Therefore, data-driven
+evaluation, based on supervised learning prediction models, is fre-
+quently used2. In addition, practical molecular design often requires
+the simultaneous optimization of multiple properties. This can be
+formulated as a multi-objective optimization problem20, and molecular
+designs based on generative models and data-driven evaluations have
+been reported using this approach4– 7,9,10.
+However, data-driven molecular design using prediction models
+faces the risk of reward hacking 21. This phenomenon, well-known in
+Received: 24 July 2024
+Accepted: 24 February 2025
+Check for updates
+1Graduate School of Medical Life Science, Yokohama City University, 1-7-29, Suehiro-cho, Tsurumi-ku, Yokohama 230-0045 Kanagawa, Japan.2RIKEN Center
+for Biosystems Dynamics Research, 1-7-22, Suehiro-cho, Tsurumi-ku, Yokohama 230-0045 Kanagawa, Japan.3HPC- and AI-driven Drug Development Platform
+Division, RIKEN Center for Computational Science, 1-7-22, Suehiro-cho, Tsurumi-ku, Yokohama 230-0045 Kanagawa, Japan.4RIKEN Center for Advanced
+Intelligence Project, 1-4-1, Nihonbashi, Chuo-ku 103-0027 Tokyo, Japan.5MDX Research Center for Element Strategy, Institute of Science Tokyo, 4259,
+Nagatsuta-cho, Midori-ku, Yokohama 226-8501 Kanagawa, Japan. e-mail: terayama@yokohama-cu.ac.jp
+Nature Communications|         (2025) 16:2409 1
+1234567890():,;
+1234567890():,;
+
+===== PAGE 2 =====
+reinforcement learning and game AI, occurs when optimization devi-
+ates unexpectedly from the intended goals22,23. It arises when a reward
+function, used to guide optimization, produces unintended outputs
+due to inputs that deviate signi ﬁcantly from expected scenarios. A
+similar issue can arise in molecular design guided by a prediction
+model, leading to the design of molecules that diverge from the
+model’s training data, resulting in reward hacking21,24,25. Consequently,
+the optimization process deviates from its intended direction. In such
+cases, the seemingly favorable predicted value of the designed mole-
+c u l em a yb ei n a c c u r a t e .I nf a c t ,i nd r u gd e s i g n ,t h e r eh a v eb e e nc a s e s
+where unstable or complex molecules, distinct from existing drugs,
+have been designed due to reward hacking24,26.
+To address the issue of reward hacking, strategies have been
+developed to assess and improve the reliability of prediction models.
+The reliability of these models has long been formulated as applic-
+ability domains (ADs) 27– 33 and has recently gained attention in the
+context of prediction uncertainty 34– 40.T h eA Di sd e ﬁned as “the
+response and chemical structure space in which the model makes
+predictions with a given reliability”27, and predictions within the AD are
+expected to maintain a certain level of accuracy. The trade-off between
+the size of an AD and the reliability of a prediction can be adjusted by
+changing the reliability level (Fig.1a). A common approach to ensuring
+reliability is to guide the design of molecules within the AD of a single
+prediction model41,42. Additionally, a strategy for performing multi-
+objective optimization by considering prediction reliability has been
+reported, where multiple ADs are merged into a single AD (Fig.1b), and
+molecular designs are then performed within this merged AD9.
+However, even when focusing on prediction reliability to mitigate
+reward hacking, maintaining reliability in multi-objective optimization
+is not straightforward. First, the strategy of merging multiple ADs is
+undesirable except in cases where multiple prediction models are
+trained on the same dataset. As prediction models have unique ADs
+depending on their training data, each AD should be considered
+separately when multiple prediction models are employed. In cases
+where multiple ADs are handled separately, as shown in the leftmost
+case of Fig.1c, when ADs are deﬁned for each prediction model at high
+reliability levels, they may not overlap if the training data for each
+model are distant in chemical space. In such situations, it is inherently
+difﬁcult to generate molecules that fall within all ADs. As a compro-
+mise, it may be possible to overlap multiple ADs by lowering the
+Fig. 1 | The concept of applicability domain (AD) and difﬁculties of multi-
+objective optimization incorporating multiple ADs. aThe concept of AD. The
+size of an AD occupied in the chemical space can be varied by changing the relia-
+bility level. b One of the strategies for multi-objective optimization that incorpo-
+rates ADs is to merge the ADs of multiple prediction models and regard them as a
+single AD. c The inherent trade-off between the reliability level and size of an
+overlapping domain (highlighted in orange) of multiple ADs in the context of multi-
+objective optimization.d Examples of success and failure cases in molecular design
+incorporating ADs of multiple prediction models. Depending on the setting of the
+molecular design, multi-objective optimization may succeed in the overlapping
+region of multiple ADs (upper case). However, the molecular design may fall out-
+side the overlapping region (middle case) and the ADs may not overlap each other
+depending on the reliability levels of the ADs (bottom case). Setting the appropriate
+reliability levels of the ADs before designing is difﬁcult.
+Article https://doi.org/10.1038/s41467-025-57582-3
+Nature Communications|         (2025) 16:2409 2
+
+===== PAGE 3 =====
+reliability levels (center and right cases in Fig.1c). However, excessively
+low reliability levels may produce unreliable molecules, and thus,
+higher reliability levels are desirable. A further complication is the
+difﬁculty in determining the appropriate reliability level before per-
+forming the molecular design (Fig.1d). De novo molecular design may
+be successful even if no molecules have been reported in the potential
+overlap of the ADs (upper right of Fig. 1d). However, there is no
+guarantee that the generative model will always succeed in designing
+molecules within the potential overlap (middle right of Fig.1d). If the
+reliability levels are too strict (bottom right of Fig. 1d), the molecular
+design will be difﬁcult, but whether it is actually impossible cannot be
+determined until the design process is executed.
+To overcome this dif ﬁculty, we developed an optimization fra-
+mework called DyRAMO (Dynamic Reliability Adjustment for Multi-
+objective Optimization), which performs multi-objective optimization
+while maintaining the reliability of multiple prediction models. DyR-
+AMO was designed to adjust the appropriate reliability level for each
+objective, achieving a balance between high prediction reliability and
+predicted properties of the designed molecules. In DyRAMO, the
+reliability levels were explored through repeated molecular designs.
+To make this exploration ef ﬁcient, Bayesian optimization (BO)43 was
+integrated into this approach. To demonstrate the ef ﬁcacy of DyR-
+AMO, we designed epidermal growth factor receptor (EGFR) inhibitors
+while maintaining high reliability for three properties: inhibitory
+activity against EGFR, metabolic stability, and membrane permeability.
+Appropriate reliability levels were efﬁciently explored using BO, and
+promising molecules, including known inhibitors, were successfully
+designed. In addition, we face a situation in which the reliability needs
+to be varied for each property prediction in a practical multi-objective
+optimization. We reported that such a prioritization is also possible by
+adjusting the DyRAMO settings. These results demonstrate the effec-
+tiveness of the data-driven generative strategy using DyRAMO. The
+DyRAMO is available at https://github.com/ycu-iil/DyRAMO.
+Results
+Construction of DyRAMO
+Figure 2 shows the DyRAMO framework for achieving multi-objective
+optimization while maintaining the prediction reliability as much as
+possible. Reliability levels are explored through an iteration of the
+following three steps: setting the reliability level of each property
+prediction, designing molecules, and evaluating the results of mole-
+cular design according to their predicted properties and their relia-
+bility levels (Fig. 2). Details of each step are described below.
+In Step 1, a reliability level ρi is set for each target property i,a n d
+the ADs of prediction models for the properties are deﬁned based on
+the set reliability levels. To de ﬁne AD in this study, we adopted the
+maximum value of Tanimoto similarity (MTS) for the training data,
+which is very simple but one of the most commonly used
+methods9,44,45. At a reliability levelρ, a molecule is included in the AD of
+a prediction model if the highest value of Tanimoto similarities
+between the molecule and the ones in the training data of the model
+exceeds ρ. The spread size of an AD varies with the reliability level ρ.
+In Step 2, the molecules are designed using a generative model to
+enter the overlapping region of the ADs given in Step 1 and perform
+multi-objective optimization. In this study, we employed ChemTSv246,
+which has proven performance in various molecular designs ranging
+from photo-functional materials 11 to drug design 8,10,47, to generate
+molecules using a recurrent neural network (RNN)48 and a Monte Carlo
+tree search (MCTS) 49. Details of the ChemTSv2, and con ﬁguration
+setup for execution are described in the Methods section. The prop-
+erties of the designed molecules were evaluated using prediction
+m o d e l sb a s e do ns u p e r v i s e dl e a r n i n g ,a n dt h ed e t a i l so ft h em o d e l s
+used in this study are presented in the Methods section. The strategy
+for performing multi-objective optimization within the ADs is descri-
+bed in the next section. If the settings in Step 1 are not appropriate, the
+overlap of the prepared ADs may not be suf ﬁciently wide, or the
+optimization of the predicted properties may fail.
+Fig. 2 | Workﬂow of DyRAMO (Dynamic Reliability Adjustment for Multi-
+objective Optimization).DyRAMO explores an appropriate combination of the
+reliability level for each target property prediction. The exploration is conducted
+by repeating the following three steps. In step 1, a reliability level is selected for
+each property prediction, and the applicability domains (ADs) of the prediction
+models for the properties are deﬁned based on the selected reliability levels. In step
+2, molecular design is performed with the aim of satisfying the reliability levels
+given in step 1 for all property predictions (Aim 1) and achieving multi-objective
+optimization (Aim 2). This design process is conducted to obtain molecules that fall
+within all deﬁned ADs and have optimized target properties. In step 3, the eva-
+luation of the molecular design is performed from two aspects: the desirability of
+reliability levels selected in step 1 and the degree of optimization of predicted
+properties of the molecules designed in step 2. The DSS (Degree of Simultaneous
+Satisfaction of prediction reliability and multiple property optimizations) score was
+introduced to make this assessment. By repeating this cycle, an appropriate com-
+bination of the reliability levels is searched for so as to improve the DSS score. In
+DyRAMO, Bayesian optimization (BO) is introduced to accelerate this exploration.
+Article https://doi.org/10.1038/s41467-025-57582-3
+Nature Communications|         (2025) 16:2409 3
+
+===== PAGE 4 =====
+In Step 3, the molecular design is evaluated for two aspects:
+whether the design is highly reliable and whether the designed mole-
+cules are suf ﬁciently optimized for the properties, using the DSS
+(Degree of Simultaneous Satisfaction of prediction reliability and
+multiple property optimizations) score deﬁned below:
+DSS =
+Yn
+i =1 ScaleriðρiÞ
+/C16/C17 1
+n
+× RewardtopX % ð1Þ
+Here, for each ith property, Scaler i is a scaling function that
+standardizes the reliability level ρi to a value between 0 and 1
+depending on its desirability. The scaling function parameters can also
+be adjusted when prioritization is desired among the properties to be
+optimized. RewardtopX% is the average of the top X reward values for
+the designed molecules, which indicates how well the multi-objective
+optimization was achieved. In this study, the top 10% of the reward
+values for the designed molecules were considered. It should be noted
+that this framework is constructed to work well with other deﬁnitions
+of ADs and uncertainties of prediction models, as long as any para-
+meter of reliability level is available.
+Exploring all the combinations of reliability levels is time-
+consuming because it requires repetitive molecular design until an
+appropriate combination is found. BO was introduced to make this
+exploration efﬁcient. This technique allows the efﬁcient exploration of
+input variables to maximize (or minimize) a prede ﬁned objective
+function. Here, the search space is a combination of possible reliability
+levels of the target properties, and the objective variable is the
+DSS score.
+Strategy of molecular design incorporating ADs
+In Step 2 of DyRAMO, molecular design aiming for multi-objective
+optimization with reliable predictions is performed using ChemTSv2.
+The design process in ChemTSv2 focuses on maximizing a predeﬁned
+reward function. To optimize multiple predicted properties within the
+ADs of multiple prediction models, we deﬁne the reward as follows:
+Reward =
+Qn
+i =1 vwi
+i
+/C0/C1
+1Pn
+i =1
+wi if si ≥ ρi for all i =1 ,2 , ... , n
+0o t h e r w i s e
+8
+<
+: ð2Þ
+where si represents the MTS between the designed molecule and the
+training data for each prediction model for ith property, ρi is a relia-
+bility level, vi is the desirability of the predicted property, wi is the
+weight, and n is the number of properties to be optimized. As a
+molecular descriptor for computing Tanimoto similarity, Morgan
+ﬁngerprint50,51, whose radius and dimension were 2 and 2048, respec-
+tively, was applied. To calculate the desirability of the predicted
+properties, Gaussian scaling functions were deﬁned for each property
+according to Brown et al. 52 ( F i g .S 2 ) .W e i g h tw is allocated to each
+predicted property for prioritization during optimization. When cal-
+culating the reward function, the evaluation of the generated mole-
+cules was changed depending on whether the designed molecule was
+within the ADs of the property prediction models. If the MTS between
+the designed molecule and training data exceeds the reliability level
+deﬁned for all target property predictions, the designed molecule is
+judged to be within the ADs. In this case, as a reward, the Dscore 53,
+which is the weighted geometric mean of the desirability of each
+property and is often used in the multi-objective optimization of
+molecular properties5,10,54, is calculated. The Dscore is designed to
+optimize multiple objectives in a balanced manner as the score
+improves, without neglecting any speci ﬁc objective. This balanced
+approach is particularly valuable in drug discovery, where achieving a
+reasonable degree of optimization for all objectives is critical. If the
+MTS is below the reliability level for any objective, it is judged to be
+outside the ADs, and the reward value is set to 0. By designing the
+reward function in this manner, we aim to achieve multi-objective
+optimization of the molecular predicted properties within the ADs of
+multiple prediction models.
+Multi-objective optimization avoiding reward hacking in
+drug design
+To verify the performance of DyRAMO, we conducted molecular
+design in the context of drug design. As a drug target, EGFR, which is
+targeted in the development of anticancer drugs55,w a ss e l e c t e d .D r u g
+design requires the optimization of pharmacokinetic properties in
+addition to activity against drug targets, as these properties are
+essential for drug ef ﬁcacy and safety 56. Here, we considered two
+pharmacokinetic properties and addressed three: inhibitory activity
+against EGFR, metabolic stability, and membrane permeability. In
+adjusting the reliability levels, each property can be weighted in the
+DSS score. The reliability level of each property prediction was stan-
+dardized by Scaler in the calculation of the DSS score. The Scaler has an
+adjustable parameterσ (Fig. S1), which is used to weight each property
+in adjusting reliability levels. Reducing theσ makes the Scaler stricter
+and more sensitive toﬂuctuations in reliability levels. Theσ used in this
+study was three patterns: 0.15 (i) for tight, 0.25 (ii) for normal, and 0.35
+(iii) for loose. The σ for each property here was set to (i) for inhibitory
+activity, and (ii) for metabolic stability and membrane permeability.
+Details of the development of prediction models for these properties,
+the molecular design using ChemTSv2, and the search for appropriate
+reliability levels using DyRAMO are described in the Methods section.
+To verify the effect of the molecular design on the prediction relia-
+bility, the same molecular design without considering the reliability
+was performed. Furthermore, to consider that desirable molecules
+exist in the training data of the property prediction models, we
+removed the approved EGFR inhibitors from the training data and then
+performed molecular design using this modiﬁed dataset.
+Figure 3 shows the results of the molecular designs with reliability
+levels adjusted by DyRAMO (Fig. 3a, c) and without considering the
+prediction reliability (Fig.3b, d). The optimized reliability levels were
+0.66 for inhibitory activity, 0.55 for metabolic stability, and 0.43 for
+membrane permeability, and the exploration process of the reliability
+levels is discussed in the next paragraph, and Fig. 4. Figure 3as h o w s
+the optimization process for the predicted properties and reliability of
+the molecules designed using ChemTSv2 with the adjusted reliability
+levels. The MTS between a designed molecule and the training data for
+each property was evaluated as the reliability of the designed mole-
+cule. The series in Fig. 3a and b show the moving averages of each of
+the 200 designed molecules. As the design progressed, the predicted
+values of the three properties, particularly the inhibitory activity,
+increased. The reliabilities of the designed molecules exceeded the set
+reliability levels (dotted lines) during molecular design, indicating that
+they were included in the adjusted AD for each model. Figures3ca n d
+S3 show examples of the designed molecules along with the predicted
+property values and MTSs of the training data. These molecules were
+predicted to have an inhibitory activity against EGFR (pIC50)o fo v e r8 ,
+with the other two predicted properties also generally well optimized.
+From the viewpoint of drug design, these molecules have a quinazoline
+substructure (highlighted in Fig. 3c), a characteristic substructure of
+known EGFR inhibitors57, suggesting that the essential feature of EGFR
+inhibitors is captured during the molecular design process. However,
+a ss h o w ni nF i g .3b and d, multi-objective optimization without con-
+sidering prediction reliability resulted in reward hacking. Although the
+predicted properties were optimized, the designed molecules differed
+signiﬁcantly from the training data. The designed molecules shown in
+Fig. 3d are far from known EGFR inhibitors. These results indicate that
+with the adjustment of the reliability levels by DyRAMO, a molecular
+design can be effectively achieved.
+In addition, even when approved drugs were removed from the
+training data of the property prediction models, DyRAMO designed
+Article https://doi.org/10.1038/s41467-025-57582-3
+Nature Communications|         (2025) 16:2409 4
+
+===== PAGE 5 =====
+Fig. 3 | Result of the molecular designs using DyRAMO. Result of the molecular
+designs with adjusted reliability levels by DyRAMO (Dynamic Reliability Adjustment
+for Multi-objective Optimization) (a, c, e) and without considering the prediction
+reliability (b, d). a, b, The left panel shows the evolution of the predicted properties,
+with the predicted values scaled from zero to one. The right panel shows the
+evolution of the maximum value of Tanimoto similarity (MTS) between the
+designed molecules and the training data of each property. The dotted line
+represents the set reliability levels.c– e Examples of designed molecules and their
+predicted properties (Pred.) and prediction reliability, i.e., the MTS with the train-
+ing data, of each property (Rel.). c Examples of molecules designed by DyRAMO
+with well-optimized predicted properties. The shown molecules were selected
+according to the following procedure. Molecules that exceeded the set reliability
+levels were obtained from ten times molecular designs with high DSS (Degree of
+Simultaneous Satisfaction of prediction reliability and multiple property optimi-
+zations) scores. Molecules that passed twoﬁl t e r s ,t h er u l eo fﬁve ﬁlter and the
+PubChem ﬁlter, were extracted. The rule of ﬁve ﬁlter is a ﬁlter based on Lipinski’s
+rule of ﬁve80,a n dt h eP u b C h e mﬁlter8 is a ﬁlter based on the frequency of occur-
+rence of molecular patterns in the PubChem database. Subsequently, k-means
+clustering (k=20) was conducted, and the molecules with the highest reward from
+each cluster were selected. Other designed examples are shown in Fig. S3. The
+highlighted areas of molecules represent the quinazoline substructure, a char-
+acteristic substructure of known epidermal growth factor receptor (EGFR) inhibi-
+tors. Inhibitory activity against EGFR (negative logarithm of the half-maximal
+inhibitory concentration: pIC50), metabolic stability (remaining percentage in one
+hour), and membrane permeability (μcm s−1) are colored in blue, green, and red,
+respectively. Predictions are obtained from a single model run.d Examples of
+molecules designed without reliability consideration. The molecular designs for
+10,000 molecules were conducted three times, and designed molecules that pas-
+sed both the rule of ﬁve ﬁlter and the PubChem ﬁlter were extracted. K-means
+clustering was performed on these extracted molecules, and the molecule with the
+largest reward in each cluster was selected. Five molecules are shown here, and the
+others are shown in Fig. S4.e Designed molecules in the case where approved drugs
+were excluded from the training data of the property prediction models. Clustering
+was conducted to select molecules in the same manner as in ( c). DyRAMO repro-
+duced geﬁtinib, one of the approved drugs against EGFR (the left end of e). Five
+molecules are shown here, with the remaining molecules presented in Fig. S5.
+Article https://doi.org/10.1038/s41467-025-57582-3
+Nature Communications|         (2025) 16:2409 5
+
+===== PAGE 6 =====
+molecules with desirable predicted properties. Among the generated
+molecules, ge ﬁtinib, one of the approved drugs that had been
+removed from the training data of the property prediction models, was
+included (Fig. 3e). The number of molecules satisfying the reliability
+thresholds set by DyRAMO (i.e., classi ﬁed as inside the ADs) was
+counted for both the newly generated molecules and the training
+molecules of the property prediction models. This analysis revealed
+that DyRAMO generated a suf ﬁcient number of novel molecules
+(Fig. S6, Table S1). Furthermore, examining the distribution of these
+molecules in chemical space demonstrated that the generated mole-
+cules not only overlapped with the space occupied by training mole-
+cules with desirable predicted properties but also extended into
+previously unexplored space (Fig. S7). These results highlight DyR-
+AMO’s capability to design novel and promising molecules with
+desirable predicted properties.
+The exploration process for the optimal reliability levels using
+DyRAMO is shown in Fig. 4. For comparison, the results of randomly
+adjusting the reliability levels are also presented. Fig. 4a shows the
+evolution of the DSS score during BO-based and random exploration.
+In BO-based exploration, the DSS score increased as exploration pro-
+gressed, eventually reaching approximately 0.38. In contrast, during
+random exploration, the DSS score ﬂuctuated between 0.0 and 0.2
+throughout. This demonstrates that the BO ef ﬁciently identiﬁed a
+combination of appropriate reliability levels that yielded a high DSS
+score. Figure 4b and c represent the evolution of the explored relia-
+bility levels and the scaled predicted properties of the designed
+molecules, respectively. Each scaled predicted property in each
+exploration step is calculated by extracting the designed molecules
+with the top 10% average of the three scaled properties from all
+designed molecules, and then averaging each scaled property for these
+extracted molecules. The explored reliability levels stabilized late in
+the exploration process and converged at approximately 0.60 for
+inhibitory activity against EGFR, and 0.40 for metabolic stability and
+membrane permeability, respectively. The predicted properties were
+optimized as exploration progressed. Figure 4d illustrates how DyR-
+AMO balances the desirability of the reliability levels and predicted
+properties. At the beginning of the exploration, either the average
+reliabilities or scaled properties are high, or both are low. However, as
+the exploration progresses, it can be seen that the exploration moves
+toward the upper right in an attempt to optimize both the averaged
+reliabilities and scaled properties. Figure4e shows that it is difﬁcult to
+conduct efﬁcient random exploration. These results demonstrated the
+efﬁciency of BO-based exploration in DyRAMO for designing mole-
+cules while avoiding reward hacking.
+Prioritizing properties in reliability adjustment
+In practical multi-objective optimization situations, the relative
+importance of each property may differ, and it is desirable to have high
+prediction reliability for properties of high importance, whereas for
+properties of lesser importance, it may be acceptable to compromise
+reliability. Therefore, we tested the feasibility of adjusting the relia-
+bility level of each property prediction by weighting it using the
+DyRAMO. This investigation was conducted under four scenarios: 1.
+without prioritization (no-priority) and 2. with the highest priority
+given to inhibitory activity against EGFR (inhibitory activity prior-
+itized); 3. metabolic stability (metabolic stability prioritized); and 4.
+membrane permeability (permeability prioritized). The weighting was
+provided by the value of theσ of the Scaler in the DSS score. Theσ for
+Fig. 4 | The processes of adjusting reliability levels by Bayesian optimization
+(BO) and random exploration in DyRAMO (Dynamic Reliability Adjustment for
+Multi-objective Optimization).Panels a– c show the evolution of the DSS (Degree
+of Simultaneous Satisfaction of prediction reliability and multiple property opti-
+mizations) score, reliability levels, and scaled predicted properties of designed
+molecules, respectively. The dashed lines in (a) trace the maximum DSS score
+achieved up to each exploration step. The search processes by BO (d) and random
+exploration (e) in the space of averaged reliability levels and the average scaled
+predicted properties. Each exploration step is color-coded, white at the beginning
+of the exploration and changing to orange as the exploration progresses. In the BO-
+assisted exploration, the exploration proceeded to optimize both the averaged
+reliability levels and scaled properties.
+Article https://doi.org/10.1038/s41467-025-57582-3
+Nature Communications|         (2025) 16:2409 6
+
+===== PAGE 7 =====
+each property was set to (i) for properties given the highest priority
+and (iii) for others. In pattern 1 (no-priority), (iii) was set for all prop-
+erties. Except for the weighting, the reliability levels were explored
+under the same conditions as those in the exploration conducted by
+DyRAMO in Section Multi-objective optimization avoiding reward
+hacking in drug design.
+Figure 5a shows that under the four scenarios with different
+reliability priorities, the molecules were optimized as intended. The
+vertical axis in Fig. 5a shows the reliability levels explored using the
+DyRAMO. In pattern 2 (inhibitory activity prioritized), the average of
+reliability levels for the inhibitory activity was higher than that in the
+no-priority pattern, approximately 0.63 and 0.53, respectively. Similar
+increases in the explored reliability levels were observed for patterns 3
+(metabolic stability prioritized) and 4 (permeability prioritized).
+Figure 5b– d shows examples of molecules designed with patterns 3, 4,
+and 5. The similarity between the designed and training molecules for
+the prediction model was relatively high for the prioritized properties.
+In particular, when priority was given to metabolic stability or mem-
+brane permeability (patterns 3 and 4), whose optimized reliability
+levels were relatively low in pattern 1, slightly different molecules were
+designed, as shown in Fig. 5c and d. These results indicate that DyR-
+AMO can adjust the reliability, re ﬂecting priorities among the target
+properties.
+Molecular design in a situation where the overlap of ADs is not
+expected
+In the context of multi-objective optimization using prediction mod-
+els, it is assumed that the training molecules of each prediction model
+do not overlap or are not similar. In the molecular design examined in
+Section Multi-objective optimization avoiding reward hacking in drug
+design, several molecules, spanned multiple training datasets, leading
+to a situation in which the overlap of the ADs for each property was
+relatively large. Therefore, molecules likely to span multiple ADs were
+removed from the training data of the prediction model. Speciﬁcally,
+for data with MTS greater than 0.5, across the three datasets, a total of
+777 molecules were removed (Fig. 6a). The prediction models were
+reconstructed using the partially removed dataset, and the reliability
+levels were explored using DyRAMO under the same conditions
+described in Section Multi-objective optimization avoiding reward
+hacking in drug design. ChemTSv2 with adjusted reliability levels
+successfully reproduced known EGFR inhibitors that were excluded
+from the training dataset (Fig. 6b). These molecules have high
+experimental pIC50 values against EGFR (approximately 7-8), with
+generally optimized predicted metabolic stability and membrane
+permeability. This suggests that DyRAMO has the potential to identify
+drug candidates even when the molecules in each training dataset are
+not similar.
+Discussions
+Reward hacking is a common phenomenon and an unavoidable issue
+as long as designing a perfect reward before optimization is difﬁcult23.
+As has been pointed out in the past21, reward hacking, in which multi-
+objective optimization seems to succeed, but the molecule is actually
+unpromising, occurred in this study, as shown in Fig. 3b, d. DyRAMO
+was designed with the intention of generating molecules within an
+overlapping reliable region by introducing the idea of adjustable AD
+for each property to avoid such reward hacking. As shown in Fig.3,b y
+appropriately adjusting the reliability levels, promising molecules,
+including known inhibitors, were designed by appropriately adjusting
+their reliability levels. In addition, because the exploration of an
+appropriate combination of reliability levels can be daunting, we for-
+mulated the reliability level exploration as a black-box optimization of
+a function that computes the DSS score that balances both the relia-
+bility and multi-objective optimization of the predicted properties.
+This allowed us to introduce an efﬁcient exploration method using BO,
+and the optimal reliability levels were found quickly, as shown in Fig.4.
+Furthermore, as described in Section Prioritizing properties in relia-
+bility adjustment, properties can be prioritized by assigning appro-
+priate weights to the DSS score. This study introduces a solution to the
+problem of multi-objective optimization using generative models,
+which is likely to become even more important in the future.
+Although DyRAMO is a general framework for avoiding reward
+hacking in multi-objective optimization, there is still room for
+improvement, even when focusing on molecular design. First, it is
+necessary to investigate how to establish an appropriate deﬁnition of
+the reliability or conﬁdence of a prediction model. Although this study
+adopted a simple and basic method of de ﬁning AD, MTS from the
+training data, various other deﬁn i t i o n so fA Dh a v eb e e np r o p o s e d .F o r
+instance, in addition to distance-based methods, such as Tanimoto
+similarity, range-based and probability density distribution-based
+methods58. The molecular representations for these calculations
+include ﬁngerprints, property-based vector representations, and
+graph representations59. The optimal approach for assessing predic-
+tion reliability differs for each dataset 58, making the optimization of
+reliability indicators crucial. DyRAMO is applicable to methods for
+deﬁning ADs other than MTS and has also been con ﬁrmed to work
+effectively when using a 3D-based similarity metric to de ﬁne ADs
+(Figs. S10, S11). Determining which AD indicators are most suitable for
+molecular design remains an issue that should be further investigated
+in the future. In addition, activity cliffs (ACs), a phenomenon where
+structurally similar molecules exhibit signiﬁcantly different activities60,
+require particular caution, especially deﬁning ADs based on structure
+similarity-based metrics, such as MTS. In situations where ACs occur,
+the assumption that structural similarity correlates with higher pre-
+diction reliability may collapse, and the de ﬁned AD may not work as
+intended. A tentative approach to address this issue is to include
+occurrence of ACs as part of the criteria for de ﬁning ADs. Signiﬁcant
+efforts have been made to predict whether a given pair of molecules
+may exhibit ACs61– 66, and these methods could potentially be utilized
+to address the issue. A simple approach to handling ACs using these
+methods would be to classify molecule pairs predicted to cause ACs as
+outside ADs. Although it is currently challenging to completely avoid
+prediction errors caused by ACs using machine learning-based AC
+detection methods67, addressing these issues remains an important
+area for future investigation.
+In addition, the design of the reward, that is, the evaluation
+function for molecular design and the DSS score, may also have areas
+for advancement. Careful setting of the evaluation function in mole-
+cular design is required because it directly affects the molecule to be
+designed; therefore, a suitable design for DyRAMO should be
+explored. Although multi-objective optimization was formulated
+using the Dscore 53 in this study, this serves merely as one example,
+other optimization strategies using weighted sums 7,54 or Pareto
+solutions7,68,69 may also be promising. In this study, most of the relia-
+bility levels were low when the number of target property variables was
+high, as shown in Fig. S12 and Table S2. This reﬂects the difﬁculty of the
+problem itself, but it could be improved by re ﬁning the molecular
+design model, careful setting of the molecular design, and modifying
+the DSS scores.
+Finally, to overcome the limitations of molecular designs that
+depend on training data, as shown in this study, the use of methods
+that do not rely on currently available data is essential. As speci ﬁc
+strategies, adding new data or predicting properties through mole-
+cular simulations based on physicochemical backgrounds can be
+considered. Although adding new data is costly, it is expected to
+expand the AD, thereby enabling reliable molecular design in a broader
+chemical space. Incorporating the estimation of physical properties by
+quantum chemistry, all-atom, coarse-grained, or docking simulations
+into molecular design is also a promising strategy. These methods are
+based on physicochemical principles and thus could mitigate risks
+Article https://doi.org/10.1038/s41467-025-57582-3
+Nature Communications|         (2025) 16:2409 7
+
+===== PAGE 8 =====
+Fig. 5 | Effects of prioritization on adjustment of reliability levels. a Reliability
+levels explored in each prioritization pattern. From left to right, the explored
+reliability levels for inhibitory activity against epidermal growth factor receptor
+(EGFR), metabolic stability, and permeability are shown. The box-and-whisker plots
+represent the distributions of reliability levels under different prioritization pat-
+terns: no priority (gray), inhibitory activity prioritized (blue), metabolic stability
+prioritized (green), and permeability prioritized (red). Each box indicates the
+interquartile range, with the horizontal line representing the median of explored
+reliability levels. The whiskers show the range from 5th to 95th percentiles of the
+explored reliability levels. The circles indicate the average of explored reliability
+levels for each prioritization pattern. Each plot is based on 150 samples, generated
+through DyRAMO (Dynamic Reliability Adjustment for Multi-objective
+Optimization). DyRAMO performed 30 exploration steps with Bayesian optimiza-
+tion per run, repeated across 5 runs, resulting in a total of 150 samples for each
+prioritization pattern. Examples of molecules designed in the patterns prioritize
+inhibitory activity (b), metabolic stability (c), and permeability (d). Novel molecules
+with a high maximum value of Tanimoto similarity (MTS) to the training data of the
+prioritized property are shown. The values under each molecule present the pre-
+dicted property (Pred.) and prediction reliability (Rel.), i.e., the MTS with the
+training data for each property. Inhibitory activity against EGFR (negative logarithm
+of the half-maximal inhibitory concentration: pIC50), metabolic stability (remaining
+percentage in one hour), and membrane permeability (μcm s−1) are colored in blue,
+green, and red, respectively.
+Article https://doi.org/10.1038/s41467-025-57582-3
+Nature Communications|         (2025) 16:2409 8
+
+===== PAGE 9 =====
+associated with prediction reliability and activity cliffs, which are
+inherent in data-driven property estimation. Indeed, experimental
+validation of functional molecules designed by quantum chemistry
+calculations has been reported18. While it is challenging to simulate all
+properties, including permeability and pharmacokinetics, as addres-
+sed in this study, utilizing the available simulation techniques to verify
+and design molecules with low reliability will be necessary in the
+future.
+Methods
+Molecule generator
+As a molecule generator, we employed ChemTSv2 46, which has been
+applied in materials11,13,18,19 and drug design8,10,47 and has been experi-
+mentally validated to have the ability to design desired molecules.
+ChemTSv2 combines two main components: molecular design with an
+RNN and chemical space exploration via MCTS. In MCTS, each node
+represents an atom in the molecule’s Simpliﬁed Molecular Input Line
+Entry System (SMILES) 70 string, exploring molecules by extending
+nodes to build a search tree. The exploration process using MCTS
+involves four steps: selection, expansion, simulation, and back-
+propagation. In the selection step, a leaf node is selected based on the
+upper con ﬁdence bound (UCB) score. The UCB score balances
+exploration and exploitation by adjusting the parameter C.F o r
+instance, a highC value (e.g., 1.0) emphasizes exploitation, focusing on
+unvisited nodes, whereas a low value (e.g., 0.1) encourages the
+exploration of promising nodes. In the expansion step, the selected
+node is expanded based on the RNN. In the simulation step, a molecule
+is generated by completing the SMILES part with the RNN, and is
+evaluated using a reward function. Finally, backpropagation updates
+the UCB score of the evaluated node based on the reward function.
+ChemTSv2 iterates these four steps to design molecules that maximize
+the value of the reward function. The RNN model was trained using
+224,153 molecules from the ChEMBL database. These molecules were
+represented as randomized SMILES71 to explore a wide range of che-
+mical space.
+Construction and evaluation methods of the property
+prediction models
+The construction and evaluation methods of the prediction models
+used to evaluate the designed molecules are described below. In this
+study, we tried two patterns for several target properties: 3 properties
+and 13 properties. When the 3 properties pattern, as target properties,
+the following three properties were selected: inhibitory activity against
+EGFR, metabolic stability, and membrane permeability. When 13
+properties pattern, an additional ten properties were incorporated,
+including inhibitory activity against eight off-target proteins from
+tyrosine kinases and two other properties. Eight tyrosine kinase pro-
+teins were selected as described by Yoshizawa et al.10: receptor protein-
+tyrosine kinase erbB-2, Abelson tyrosine-protein kinase, proto-
+oncogene tyrosine-protein kinase, lymphocyte-speciﬁct y r o s i n e - p r o -
+tein kinase, platelet-derived growth factor receptor beta, vascular
+endothelial growth factor receptor 2,ﬁbroblast growth factor receptor
+1, and ephrin type-B receptor 4. For the other two properties, inhibi-
+tory activity against the human ether-a-go-go-related gene channel
+(hERG) and solubility were selected. The training data for these models
+were obtained from ChEMBL2872 for inhibitory activity against tyrosine
+kinases, metabolic stability, and membrane permeability; from Sato
+et al.73 for hERG inhibition; and from Tayyebi et al.74 for solubility. To
+prepare the input features for the prediction models, Morgan ﬁnger-
+prints with radii and dimensions of 2 and 2048, respectively, were
+calculated using RDKit software 75. As a prediction algorithm, light
+gradient boosting machine76 was applied, and the hyperparameters
+were optimized using Optuna software77. The prediction performance
+of each model was evaluated using 5-fold cross-validation (Fig. S13).
+Finally, for each property, prediction models were developed using the
+entire dataset for the molecular design.
+Fig. 6 | Removal of similar molecules across datasets and rediscovered exam-
+ples in the removed molecules. a 777 molecules that were similar between data-
+sets, speciﬁcally those with a maximum Tanimoto similarity (MTS) greater than 0.5,
+were removed. The numbers noted in the Venn diagram indicate the number of
+data. b Examples of molecules reproduced as a result of molecule design by DyR-
+AMO (Dynamic Reliability Adjustment for Multi-objective Optimization). Experi-
+mental inhibitory activity values (Exp.) of the molecules are noted at the top of each
+table. Predicted properties (Pred.) and prediction reliability, i.e., the MTS with the
+training data, of each property (Rel.) of the molecules are presented in the tables.
+Inhibitory activity against epidermal growth factor receptor (EGFR) (negative
+logarithm of the half-maximal inhibitory concentration: pIC50), metabolic stability
+(remaining percentage in one hour), and membrane permeability (μcm s−1)a r e
+colored in blue, green, and red, respectively. Other reproduced molecules and
+designed molecules with high reward values are shown in Figs. S8 and S9,
+respectively.
+Article https://doi.org/10.1038/s41467-025-57582-3
+Nature Communications|         (2025) 16:2409 9
+
+===== PAGE 10 =====
+Bayesian optimization-assisted adjustment of reliability levels
+T h eg o a lo fD y R A M Oi st oo p t i m i z et h eD S Ss c o r et oe s t a b l i s ha n
+appropriate reliability level for deﬁning AD while iteratively designing
+molecules. The search spaces, consisting of combinations of reliability
+level value sets for each target property prediction, are de ﬁned as
+follows: The units of the reliability level candidates are adjusted based
+on the number of target properties. For the 3 properties case, we
+generated 80 options per property, spanning from 0.1 to 0.9 by 0.01
+increments, yielding 803 threshold combinations for exploration. For
+the 13 properties case, we prepared three reliability level candidates
+per property: 0.3, 0.4, and 0.5, resulting in 313 possible combinations.
+DyRAMO uses BO to efﬁciently explore the appropriate combinations
+of reliability levels that result in higher DSS values. For the acquisition
+function in the BO, the expected improvement78 was used in all com-
+putational scenarios. The computation of BO, a Python library,
+PHYSBO79, was used. After 10 random explorations were conducted for
+initialization, 30 explorations were conducted using BO. This total of
+40 explorations is called an episode. Five episodes were run for each
+set of computational scenarios to account for the randomness in the
+exploration processes.
+Data availability
+Property prediction models and their training data are available on
+GitHub at https://github.com/ycu-iil/prediction_model_collection.
+Source data are provided with this paper.
+Code availability
+T h eP y t h o nc o d eu s e dt oi m p l e m e n tD y R A M Oi sa v a i l a b l eo nG i t H u ba t
+https://github.com/ycu-iil/DyRAMOand Zenodo at https://doi.org/10.
+5281/zenodo.14731974. DyRAMO is available under the MIT License.
+Methods for reproducing the results are described in the following:
+https://github.com/ycu-iil/DyRAMO/blob/main/doc/reproduction_
+instruction.md.
+References
+1. Sanchez-Lengeling, B. & Aspuru-Guzik, A. Inverse molecular design
+using machine learning: Generative models for matter engineering.
+Science 361,3 6 0–365 (2018).
+2 . B i l o d e a u ,C . ,J i n ,W . ,J a a k k o l a ,T . ,B a r z i l a y ,R .&J e n s e n ,K .F .G e n -
+erative models for molecular discovery: Recent advances and
+challenges.WIREs Comput. Mol. Sci. 12, e1608 (2022).
+3. Pang, C., Qiao, J., Zeng, X., Zou, Q. & Wei, L. Deep generative
+models in de novo drug molecule generation.J. Chem. Inf. Mod-
+eling 64,2 1 7 4–2194 (2023).
+4. Li, Y., Zhang, L. & Liu, Z. Multi-objective de novo drug design
+with conditional graph generative model.J. Cheminform. 10,
+33 (2018).
+5. Winter, R. et al. Ef ﬁcient multi-objective molecular optimization in a
+continuous latent space.Chem. Sci. 10,8 0 1 6–8024 (2019).
+6. Khemchandani, Y. et al. Deepgraphmolgen, a multi-objective,
+computational strategy for generating molecules with desirable
+properties: a graph convolution and reinforcement learning
+approach. J. Cheminform. 12,5 3( 2 0 2 0 ) .
+7. Liu, X. et al. Drugex v2: de novo design of drug molecules by pareto-
+based multi-objective reinforcement learning in poly-
+pharmacology.J. Cheminform. 13,8 5( 2 0 2 1 ) .
+8. Ma, B. et al. Structure-based de novo molecular generator com-
+bined with artiﬁcial intelligence and docking simulations.J. Chem.
+Inf. Modeling 61, 3304–3313 (2021).
+9. Perron, Q. et al. Deep generative models for ligand-based de novo
+design applied to multi parametric optimization.J. Computational
+Chem. 43,6 9 2–703 (2022).
+10. Yoshizawa, T. et al. Selective inhibitor design for kinase homologs
+using multiobjective monte carlo tree search.J. Chem. Inf. Model-
+ing 62,5 3 5 1–5360 (2022).
+11. Sumita, M., Yang, X., Ishihara, S., Tamura, R. & Tsuda, K. Hunting for
+organic molecules with artiﬁcial intelligence: Molecules optimized
+for desired excitation energies.ACS Cent. Sci. 4, 1126–1133 (2018).
+12. Radhakrishnapany, K. T. et al. Design of fragrant molecules through
+the incorporation of rough sets into computer-aided molecular
+design. Mol. Syst. Des. Eng. 5,1 3 9 1–1416 (2020).
+13. Zhang, Y. et al. Discovery of polymer electret material via de novo
+molecule generation and functional group enrichment analysis.
+Appl. Phys. Lett. 118, 223904 (2021).
+14. Chong, J. W., Thangalazhy-Gopakumar, S., Muthoosamy, K. &
+Chemmangattuvalappil, N. G. Design of bio-oil additives via mole-
+cular signature descriptors using a multi-stage computer-aided
+molecular design framework.Front. Chem. Sci. Eng. 16,1 6 8–182
+(2021).
+15. Ooi, Y. J. et al. Design of fragrance molecules using computer-aided
+molecular design with machine learning.Computers Chem. Eng.
+157, 107585 (2022).
+16. S. V., S. S. et al. Multi-objective goal-directed optimization of de
+novo stable organic radicals for aqueous redoxﬂow batteries. Nat.
+Mach. Intellig. 4,7 2 0–730 (2022).
+1 7 . Y e e ,Q .Y . ,H a s s i m ,M .H . ,C h e m m a n g a t t u v a l a p p i l ,N .G . ,T e n ,J .Y .&
+Raslan, R. Optimization of quality, safety and health aspects in
+personal care product preservative design.Process Saf. Environ.
+Prot. 157,2 4 6–253 (2022).
+18. Sumita, M. et al. De novo creation of a naked eye –detectable
+ﬂuorescent molecule based on quantum chemical computation
+and machine learning.Sci. Adv. 8 eabj3906 (2022).
+19. Fujita, T. et al. Understanding the evolution of a de novo molecule
+generator via characteristic functional group monitoring.Sci.
+Technol. Adv. Mater. 23,3 5 2–360 (2022).
+20. Fromer, J. C. & Coley, C. W. Computer-aided multi-objective opti-
+mization in small molecule discovery.Patterns 4,1 0 0 6 7 8( 2 0 2 3 ) .
+21. Gendreau, P. et al. Molecular assays simulator to unravel predictors
+hacking in goal-directed molecular generations.J. Chem. Inf.
+Modeling 63,3 9 8 3–3998 (2023).
+22. Had ﬁeld-Menell, D., Milli, S., Abbeel, P., Russell, S. & Dragan, A.
+Inverse reward designhttps://arxiv.org/abs/1711.02827(2017).
+23. Skalse, J., Howe, N. H. R., Krasheninnikov, D. & Krueger, D. Deﬁning
+and characterizing reward hackinghttps://arxiv.org/abs/2209.
+13085 (2022).
+24. Renz, P., Van Rompaey, D., Wegner, J. K., Hochreiter, S. & Klam-
+bauer, G. On failure modes in molecule generation and optimiza-
+tion. Drug Discov. Today.: Technol.32-33,5 5–63 (2019).
+25. Langevin, M., Vuilleumier, R. & Bianciotto, M. Explaining and
+avoiding failure modes in goal-directed generation of small mole-
+cules. J. Cheminform. 14, 40 (2022).
+26. Gao, W. & Coley, C. W. The synthesizability of molecules proposed
+by generative models.J. Chem. Inf. Modeling60,5 7 1 4–5723 (2020).
+27. Netzeva, T. I. et al. Current status of methods for de ﬁning the
+applicability domain of (quantitative) structure-activity relation-
+ships: The report and recommendations of ecvam workshop 52,.
+Alternatives Lab. Anim.33,1 5 5–173 (2005).
+28. Dimitrov, S. et al. A stepwise approach for deﬁning the applicability
+domain of sar and qsar models. J. Chem. Inf. Modeling 45,
+839–849 (2005).
+29. Schroeter, T. S. et al. Estimating the domain of applicability for
+machine learning qsar models: a study on aqueous solubility of
+drug discovery molecules.J. Computer-Aided Mol. Des.21,
+651–664 (2007).
+30. Weaver, S. & Gleeson, M. P. The importance of the domain of
+applicability in qsar modeling.J. Mol. Graph. Model. 26,
+1315–1326 (2008).
+31. Dragos, H., Gilles, M. & Alexandre, V. Predicting the predictability: A
+uniﬁed approach to the applicability domain problem of qsar
+models. J. Chem. Inf. Modeling 49,1 7 6 2–1776 (2009).
+Article https://doi.org/10.1038/s41467-025-57582-3
+Nature Communications|         (2025) 16:2409 10
+
+===== PAGE 11 =====
+32. Kühne, R., Ebert, R.-U. & Schüürmann, G. Chemical domain of qsar
+models from atom-centered fragments.J. Chem. Inf. Modeling 49,
+2660–2669 (2009).
+33. Hanser, T., Barber, C., Marchaland, J. F. & Werner, S. Applicability
+domain: towards a more formal deﬁnition. SAR QSAR Environ. Res.
+27,8 6 5–881 (2016).
+34. Gal, Y. & Ghahramani, Z. Dropout as a bayesian approximation:
+Representing model uncertainty in deep learninghttps://arxiv.org/
+abs/1506.02142(2015).
+35. Lakshminarayanan, B., Pritzel, A. & Blundell, C. Simple and scalable
+predictive uncertainty estimation using deep ensembleshttps://
+arxiv.org/abs/1612.01474(2016).
+36. Sensoy, M., Kaplan, L. & Kandemir, M. Evidential deep learning to
+quantify classiﬁcation uncertaintyhttps://arxiv.org/abs/1806.
+01768 (2018).
+3 7 . J a n e t ,J .P . ,D u a n ,C . ,Y a n g ,T . ,N a n d y ,A .&K u l i k ,H .J .Aq u a n t i t a t i v e
+uncertainty metric controls error in neural network-driven chemical
+discovery.Chem. Sci. 10,7 9 1 3–7922 (2019).
+38. Tran, K. et al. Methods for comparing uncertainty quantiﬁcations for
+material property predictions.Mach. Learn.: Sci. Technol.1,
+025006 (2020).
+39. Soleimany, A. P. et al. Evidential deep learning for guided molecular
+property prediction and discovery.ACS Cent. Sci. 7,
+1356–1367 (2021).
+40. Wang, D. et al. A hybrid framework for improving uncertainty
+quantiﬁcation in deep learning-basedqsar regression modeling.J.
+Cheminform.13, 69 (2021).
+41. Kaneko, H. & Funatsu, K. Applicability domains and consistent
+structure generation.Mol. Inform. 36, 1600032 (2016).
+42. Langevin, M. et al. Impact of applicability domains to generative
+artiﬁcial intelligence.ACS Omega 8,2 3 1 4 8–23167 (2023).
+43. Snoek, J., Larochelle, H. & Adams ,R .P .P r a c t i c a lb a y e s i a no p t i m i -
+zation of machine learning algorithms.Adv. Neural Inform. Process.
+Syst. 25 2951–2959 (2012).
+44. Tetko, I. V. et al. Critical assessment of qsar models of environ-
+mental toxicity against tetrahymena pyriformis: Focusing on
+applicability domain and overﬁtting by variable selection.J. Chem.
+Inf. Modeling 48,1 7 3 3–1746 (2008).
+45. Kar, S., Roy, K. & Leszczynski, J.Applicability Domain: A Step Toward
+Conﬁdent Predictions and Decidability for QSAR Modeling,1 4 1 - 1 6 9
+(Springer New York, 2018).
+46. Ishida, S. et al. Chemtsv2: Functional molecular design using de
+novo molecule generator.WIREs Comput. Mol. Sci. 13,e 1 6 8 0
+(2023).
+47. Shimizu, Y. et al. Ai-driven molecular generation of not-patented
+pharmaceutical compounds using world open patent data.J.
+Cheminform.15, 120 (2023).
+48. Rumelhart, D. E. & McClelland, J . L. Learning Internal Representa-
+tions by Error Propagation. In Parallel Distributed Processing:
+Explorations in the Microstructure of Cognition: Foundations,
+318–362 (MIT Press, 1987).
+49. Coulom, R. Ef ﬁcient Selectivity and Backup Operators in Monte-
+Carlo Tree Search. 5th International Conference on Computer and
+Games,7 2–83 (Springer, 2006).
+50. Morgan, H. L. The generation of a unique machine description for
+chemical structures-a technique developed at chemical abstracts
+service. J. Chem. Documentation5,1 0 7–113 (1965).
+51. Rogers, D. & Hahn, M. Extended-connectivity ﬁngerprints.J. Chem.
+Inf. Modeling 50,7 4 2–754 (2010).
+5 2 . B r o w n ,N . ,F i s c a t o ,M . ,S e g l e r ,M .H .&V a u c h e r ,A .C .G u a c a M o l :
+Benchmarking models for de novo molecular design.J. Chem. Inf.
+Modeling 59,1 0 9 6–1108 (2019).
+53. Cummins, D. J. & Bell, M. A. Integrating everything: The molecule
+selection toolkit, a system for compound prioritization in drug dis-
+covery. J. Medicinal Chem. 59, 6999–7010 (2016).
+54. Blaschke, T. et al. Reinvent 2.0: An ai tool for de novo drug design.J.
+Chem. Inf. Modeling 60,5 9 1 8–5922 (2020).
+55. Herbst, R. S. Review of epidermal growth factor receptor biology.
+Int. J. Radiat. Oncol. Biol. Phys. 59,S 2 1–S26 (2004).
+56. Lambrinidis, G. & Tsantili-Kakoulidou, A. Multi-objective optimiza-
+tion methods in novel drug design. Expert Opin. Drug Discov. 16,
+647–658 (2020).
+57. Bhatia, P. et al. Novel quinazoline-based egfr kinase inhibitors: A
+review focussing on sar and molecular docking studies (2015-2019).
+Eur. J. Medicinal Chem. 204, 112640 (2020).
+58. Sahigara, F. et al. Comparison of different approaches to deﬁne the
+applicability domain of qsar models.Molecules 17,4 7 9 1–4810
+(2012).
+59. Rakhimbekova, A. et al. Comprehensive analysis of applicability
+d o m a i n so fq s p rm o d e l sf o rc h e m i c a lr e a c t i o n s .Int. J. Mol. Sci. 21,
+5542 (2020).
+60. Maggiora, G. M. On outliers and ac tivity cliffswhy qsar often dis-
+appoints. J. Chem. Inf. Modeling 46,1 5 3 5–1535 (2006).
+61. Heikamp, K., Hu, X., Yan, A. & Bajorath, J. Prediction of activity cliffs
+using support vector machines.J. Chem. Inf. Modeling 52,
+2354–2365 (2012).
+62. de la Vega de León, A. & Bajorath, J. Prediction of compound
+potency changes in matched molecular pairs using support vector
+regression.J. Chem. Inf. Modeling 54,2 6 5 4–2663 (2014).
+63. Husby, J., Bottegoni, G., Kufareva, I., Abagyan, R. & Cavalli, A.
+Structure-based predictions of activity cliffs.J .C h e m .I n f .M o d e l i n g
+55,1 0 6 2–1076 (2015).
+64. Horvath, D. et al. Prediction of activity cliffs using condensed
+graphs of reaction representations, descriptor recombination,
+support vector machine classiﬁcation, and support vector regres-
+sion. J. Chem. Inf. Modeling 56,1 6 3 1–1640 (2016).
+6 5 . I q b a l ,J . ,V o g t ,M .&B a j o r a t h ,J .P r e d i c t i o no fa c t i v i t yc l i f f so nt h e
+basis of images using convolutional neural networks.J. Computer-
+Aided Mol. Des. 35, 1157–1164 (2021).
+66. Park, J., Sung, G., Lee, S., Kang, S. & Park, C. Acgcn: Graph
+convolutional networks for activity cliff prediction between
+matched molecular pairs.J. Chem. Inf. Modeling 62,2 3 4 1–2351
+(2022).
+67. van Tilborg, D., Alenicheva, A. & Grisoni, F. Exposing the limitations
+of molecular machine learning with activity cliffs.J. Chem. Inf.
+Modeling 62,5 9 3 8–5951 (2022).
+68. Tamura, R., Terayama, K., Sumita, M. & Tsuda, K. Ranking pareto
+optimal solutions based on projection free energy.Phys. Rev. Mater.
+7,0 9 3 8 0 4( 2 0 2 3 ) .
+69. Suzuki, T., Ma, D., Yasuo, N. & Sekijima, M. Mothra: Multiobjective de
+novo molecular generation using monte carlo tree search.J. Chem.
+Inf. Modeling 64,7 2 9 1–7302 (2024).
+70. Weininger, D. Smiles, a chemical language and information system.
+1. introduction to methodology and encoding rules.J. Chem. Inf.
+Computer Sci. 28,3 1–36 (1988).
+71. Arús-Pous, J. et al. Randomized sm iles strings improve the quality of
+molecular generative models.J. Cheminform. 11, 71 (2019).
+72. Mendez, D. et al. ChEMBL: towards direct deposition of bioassay
+data. Nucleic Acids Res. 47,D 9 3 0–D940 (2018).
+73. Sato, T., Yuki, H. & Honma, T. Quantitative prediction of herg inhi-
+bitory activities using support vector regression and the integrated
+herg dataset in amed cardiotoxicity database.Chem.-Bio Inform. J.
+21,7 0–80 (2021).
+74. Tayyebi, A. et al. Prediction of organic compound aqueous solubi-
+lity using machine learning: a comparison study of descriptor-
+based andﬁngerprints-based models.J. Cheminform.15,9 9( 2 0 2 3 ) .
+75. Landrum, G. Rdkit: Open-source cheminformatics. https://www.
+rdkit.org.
+76. Ke, G. et al. Lightgbm: A highly ef ﬁcient gradient boosting decision
+tree. Adv. Neural Inform. Process. Syst.30,3 1 4 6–3154 (2017).
+Article https://doi.org/10.1038/s41467-025-57582-3
+Nature Communications|         (2025) 16:2409 11
+
+===== PAGE 12 =====
+77. Akiba, T., Sano, S., Yanase, T., Ohta, T. & Koyama, M. Optuna: A next-
+generation hyperparameter optimization frameworkhttps://arxiv.
+org/abs/1907.10902(2019).
+7 8 . J o n e s ,D .R . ,S c h o n l a u ,M .&W e l c h ,W .J .J. Glob. Optim. 13,
+455–492 (1998).
+79. Motoyama, Y. et al. Bayesian optimization package: Physbo. Com-
+puter Phys. Commun. 278, 108405 (2022).
+80. Lipinski, C. A., Lombardo, F., Dominy, B. W. & Feeney, P. J. Experi-
+mental and computational approaches to estimate solubility and
+permeability in drug discovery and development settings.Adv.
+Drug Deliv. Rev. 23,3 –25 (1997).
+Acknowledgements
+This research was conducted in “Development of a Next-generation
+Drug Discovery AI through Industry-Academia Collaboration (DAIIA)”
+under grant no.JP23nk0101111 (T.H. and K.T.) and a Research Support
+Project for Life Science and Drug Discovery under grant no.J-
+P22ama121023 (K.T.) from Japan Agency for Medical Research and
+Development (AMED). This work was also supported by the Ministry of
+Education, Culture, Sports, Science and Technology (MEXT) under the
+grants: Simulation- and AI-driven next-generation medicine and drug
+discovery based on “Fugaku” (Grant Number: JPMXP1020230120, K.T.),
+feasibility studies for the next-generation computing infrastructure, Data
+Creation and Utilization Type Material Research and Development Pro-
+ject (Grant Number: JPMXP1122683430, K.T.), JST FOREST Program
+(Grant Number: JPMJFR232U, K.T.), RIKEN Junior Research Associate
+Program (T.Y.), and Chugai Foundation for Innovative Drug Discovery
+Science (C-FINDs) (T.Y.).
+Author contributions
+Tatsuya Yoshizawa: conceptualization (lead); methodology (lead);
+software (lead); writing— original draft (lead); writing— review and
+editing (lead). Shoichi Ishida: conceptualization (support); methodol-
+ogy (lead); software (support); writing — review and editing (lead).
+Tomohiro Sato: methodology (support); software (support), writing —
+review and editing (support). Masateru Ohta: methodology (support);
+software (support), writing— review and editing (support). Teruki
+Honma: supervision (support); funding acquisition (lead); project
+administration (lead); methodology (support); writing— review and
+editing (support). Kei Terayama: supervision (lead); funding acquisition
+(lead); methodology (lead); project administration (lead);
+conceptualization (lead); software (support); writing— review and
+editing (lead).
+Competing interests
+The authors declare no competing interests.
+Additional information
+Supplementary informationThe online version contains
+supplementary material available at
+https://doi.org/10.1038/s41467-025-57582-3.
+Correspondenceand requests for materials should be addressed to
+Kei Terayama.
+Peer review informationNature Communicationsthanks the anon-
+ymous reviewer(s) for their contribution to the peer review of this work. A
+peer review ﬁle is available.
+Reprints and permissions informationis available at
+http://www.nature.com/reprints
+Publisher’s note Springer Nature remains neutral with regard to jur-
+isdictional claims in published maps and institutional afﬁliations.
+Open Access This article is licensed under a Creative Commons
+Attribution 4.0 International License, which permits use, sharing,
+adaptation, distribution and reproduction in any medium or format, as
+long as you give appropriate credit to the original author(s) and the
+source, provide a link to the Creative Commons licence, and indicate if
+changes were made. The images or other third party material in this
+article are included in the article’s Creative Commons licence, unless
+indicated otherwise in a credit line to the material. If material is not
+included in the article’s Creative Commons licence and your intended
+use is not permitted by statutory regulation or exceeds the permitted
+use, you will need to obtain permission directly from the copyright
+holder. To view a copy of this licence, visithttp://creativecommons.org/
+licenses/by/4.0/.
+© The Author(s) 2025
+Article https://doi.org/10.1038/s41467-025-57582-3
+Nature Communications|         (2025) 16:2409 12

@@ -1,0 +1,1071 @@
+===== PAGE 1 =====
+RESEARCH ARTICLE
+www.advancedscience.com
+AMulti-ObjectiveMolecularGenerationMethodBasedon
+ParetoAlgorithmandMonteCarloTreeSearch
+Yifei Liu, Yiheng Zhu, Jike Wang, Renling Hu, Chao Shen, Wanglin Qu, Gaoang Wang,
+Qun Su, Yuchen Zhu, Yu Kang,* Peichen Pan,* Chang-Yu Hsieh,* and Tingjun Hou*
+Drugdiscoveryfacesincreasingchallengesinidentifyingnoveldrug
+candidatessatisfyingmultiplestringentobjectives,suchasbindingaﬃnity,
+proteintargetselectivity,anddrug-likeness.Existingoptimizationmethods
+strugglewiththecomplexityofhandlingnumerousobjectives,limiting
+advancementsinmoleculardesignasmostalgorithmsareonlyeﬀectivefor
+uptofouroptimizationobjectives.Toovercometheselimitations,thestudy
+introducestheParetoMonteCarloTreeSearchMolecularGeneration(PMMG)
+method,leveragingMonteCarloTreeSearch(MCTS)toeﬃcientlyuncoverthe
+ParetoFrontformoleculardesigntasksinhigh-dimensionalobjectivespace.
+Byutilizingsimpliﬁedmolecularinputlineentrysystem(SMILES)to
+representmolecules,PMMGeﬃcientlynavigatesthevastchemicalspaceto
+discovermoleculesthatexhibitmultipledesirableattributessimultaneously.
+NumericalexperimentsdemonstratePMMG’ssuperiorperformance,
+achievingaremarkablesuccessrateof51.65%insimultaneouslyoptimizing
+sevenobjectives,outperformingcurrentstate-of-the-artalgorithmsby2.5
+times.AnillustrativestudytargetingEpidermalGrowthFactorReceptor
+(EGFR)andHumanEpidermalGrowthFactorReceptor2(HER2)highlights
+PMMG’sabilitytogeneratemoleculeswithhighdockingscoresfortarget
+proteinsandfavorablepredicteddrug-likeproperties.Theresultssuggestthat
+PMMGhasthepotentialtosigniﬁcantlyacceleratereal-worlddrugdiscovery
+projectsinvolvingnumerousoptimizationobjectives.
+Y.Liu,J.Wang,R.Hu,C.Shen,W.Qu,G.Wang,Q.Su,Y.Zhu,Y.Kang,
+P.Pan,C.-Y.Hsieh,T.Hou
+CollegeofPharmaceuticalSciences
+ZhejiangUniversity
+Hangzhou,Zhejiang310058,P.R.China
+E-mail:yukang@zju.edu.cn;panpeichen@zju.edu.cn;
+kimhsieh@zju.edu.cn;tingjunhou@zju.edu.cn
+Y. Zhu
+CollegeofComputerScienceandTechnology
+ZhejiangUniversity
+Hangzhou,Zhejiang310058,P.R.China
+The ORCID identiﬁcation number(s) for the author(s) of this article
+canbefoundunder https://doi.org/10.1002/advs.202410640
+©2025TheAuthor(s).AdvancedSciencepublishedbyWiley-VCH
+GmbH.Thisisanopenaccessarticleunderthetermsofthe Creative
+CommonsAttribution License,whichpermitsuse,distributionand
+reproductioninanymedium,providedtheoriginalworkisproperlycited.
+DOI:10.1002/advs.202410640
+1.Introduction
+Traditional drug design methods, encom-
+passing target identiﬁcation, lead com-
+pounddiscovery,andsubsequentoptimiza-
+tion, are often hampered by high costs
+and lengthy timelines.[1] Particularly, in
+the initial lead discovery phase, signiﬁ-
+cant investments in human and material
+resources are often necessary to synthe-
+size and screen molecules. However, the
+advent of deep learning technology has
+openedexcitingpossibilitiesintherealmof
+drug development.[2] Deep learning-based
+molecular generation methods can eﬃ-
+ciently discover a vast number of novel
+molecules within a short period, deep gen-
+erative models like JT-VAE[3] have demon-
+strated remarkable capabilities in generat-
+ingnovelmoleculesbyeﬀectivelymodeling
+data distributions. Despite their potential,
+most models tend to generate molecules
+that closely resemble the training data
+and lack the ability to speciﬁcally target
+desired molecular objectives. Therefore,
+novel methodologies are urgently needed
+to develop generative models toward pre-
+cise and targeted molecular optimization.
+Molecular generation based on multi-objective optimization
+hasemergedasacriticalyetintricateelementofdrugdiscovery. [4]
+An ideal drug candidate typically needs to satisfy a balance
+of multiple drug-forming properties, including biological activ-
+ity, synthetic feasibility, and favorable safety proﬁles. The com-
+putational challenge of simultaneously optimizing conﬂicting
+properties rapidly escalates with the number of factors. Conse-
+quently,themajorityofexistingstudiesdonotcomprehensively
+evaluate their eﬀectiveness against all the relevant properties.[5]
+Instead, methods such as MARS[5g] have been developed and
+tested for optimizing only four objectives (e.g., GSK3, JNK3,
+QED,andSA),whileREINVENT [5f] hasbeenlimitedtojusttwo
+properties. Moreover, most multi-objective optimization strate-
+gies often resort to simplifying the problem into the single-
+dimensional problem by employing weighted summation or
+product transformations.[6] This involves assigning weights to
+each objective based on its relative importance. For example,
+Quentin et al. used a weighted summation of molecule aﬃni-
+ties across multiple targets to identify selective and multitarget
+inhibitors.[7] Additionally, nonlinear weighting approaches ex-
+Adv. Sci.2025,12,2410640 2410640(1of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+
+
+===== PAGE 2 =====
+www.advancedsciencenews.com www.advancedscience.com
+ist, like the one implemented by Chen et al., which utilizes re-
+ward values derived from Boolean operations to create a scalar-
+izedrewardfunction. [8] However,thesemethodologiesfallshort
+of achieving true multi-objective optimization. Prioritizing one
+property excessively can mask deﬁciencies in others, failing to
+achieveabalancedandoptimaloutcome.Furthermore,theseap-
+proachesmayrestricttheexplorationofchemicalspace,leading
+to the development of molecules that fail to satisfy all necessary
+requirements.
+The concept of Pareto Optimality has been pivotal in multi-
+objective optimization problems.[9] It clariﬁes the notion of bal-
+anced optimal solutions among multiple conﬂicting objectives
+andservesasacrucialguidingprincipleinsystematicallyidenti-
+fyingthesesolutions.Forexample,Kedaretal.successfullyinte-
+grated Pareto-based evolutionaryalgorithmswithBayesian opti-
+mizationtooptimizethesynthesisofsilvernanoparticlesunder
+multipleconstraints,achievinghigh-qualitysynthesiswithexcel-
+lent yield and minimal seed particle usage.[10] Similarly, Jenna
+et al. demonstrated the eﬀectiveness of Pareto algorithms in
+multi-objectivevirtualscreening,signiﬁcantlyincreasingtheeﬃ-
+ciencyofdiscoveringoptimalmoleculesbyutilizingPareto-based
+acquisition functions over scalarization approaches.[11] Further-
+more,ParetoOptimalityhasbeensuccessfullyappliedinmolec-
+ular design. Julia et al.[12] combined a generative deep learning
+model with a supervised deep learning model to navigate the
+search space and discover molecules with Pareto-Optimal prop-
+erties.
+Inthisstudy,wedevelopthePMMG(ParetoMonteCarlotree
+search Molecular Generation) algorithm for molecular genera-
+tion, which utilizes a trained recurrent neural network (RNN)
+model as a molecular generator guided by Monte Carlo tree
+search (MCTS).[13] MCTS continuously reﬁnes and optimizes
+the search direction based on the Pareto principle, explor-
+ing the vast chemical space to identify the Pareto Frontier.
+This approach achieves molecular generation under multiple
+objective constraints, yielding more satisfactory results com-
+pared to some state-of-the-art optimization methods. To fur-
+ther validate the eﬀectiveness of PMMG in multi-objective op-
+timization, we conducted a novel dual-target ligand design tar-
+geting EGFR and HER2, which are crucial targets for treat-
+ing cancers such as lung cancer and breast cancer.[14] Dur-
+ing the design process, we prioritize not only the biological
+inhibitory activity of molecules but also ADMET properties,
+drug-likeness, and synthesizability. As a result, we successfully
+identiﬁed several promising compounds with predictive prop-
+erties comparable to or even surpassing those of lapatinib,
+which holds signiﬁcant implications for multi-objective drug
+design.
+2.ResultsandDiscussion
+2.1.ArchitectureofPMMG
+PMMG consists of two parts: a molecular generator based
+on RNN and a Monte Carlo search tree used to identify the
+ParetoFrontier.Figure1showsthedetailedﬂowchartofPMMG.
+The Pareto-based Monte Carlo Search Tree is employed to
+guide the RNN in generating molecules that satisfy the desired
+properties. Speciﬁcally, an RNN model is trained to learn the
+SMILESrepresentationrulesofmolecules,generatingmolecules
+by predicting the probability distribution of the next token
+of SMILES in both the expansion and simulation steps. Dur-
+ing the generation process, MCTS creates a search tree and
+iteratively performs four steps: selection, expansion, simula-
+tion, and backpropagation. Based on the Upper Conﬁdence
+Bound(UCB)scoresofintermediatenodes,MCTScontinuously
+searches and selects nodes until encountering a termination
+symbol.
+To assess the eﬀectiveness of our proposed model PMMG,
+weconductedextensiveexperimentalvalidationonabenchmark
+dataset. In our molecular generation process, we considered
+a total of seven objectives, including both biological and non-
+biologicalproperties.Biologicalactivityreferstotheinhibitoryac-
+tivityofmoleculesagainstEGFR,whereahighervalueindicates
+strongerinhibition.Additionally,weincludedpropertiessuchas
+solubility, permeability, metabolic stability, toxicity, synthetic ac-
+cessibilityscore(SAScore), [15] andquantitativeestimateofdrug-
+likeness (QED) score,[16] which are crucial properties used in
+drug design. Certain properties, such as protein kinase inhibi-
+tion activity and solubility, need to be maximized, while others,
+liketoxicityandSAScore,needtobeminimized.Moreover,these
+propertieshavediﬀerentscales,withQEDrangingfrom[0,1]and
+permeability from [0100]. Following Nathan et al,[17] we utilized
+a Gaussian modiﬁer to normalize all objectives, transforming
+themtomaximizetheirvalues.Thissetupensuresacomprehen-
+sive consideration of various properties’ impacts on the perfor-
+manceofthemoleculargenerationmodelandprovidesaneﬀec-
+tiveevaluationofitsperformanceinmulti-objectiveoptimization
+problems.
+We selected several state-of-the-art methods for comparison
+withPMMG,categorizingthemintotwomaingroups.Theﬁrst
+groupconsistsofmethodsbasedonSMILESrepresentation,in-
+cluding SMILES-GA,[17] a molecular generation method based
+on genetic algorithms that generates new molecules by mu-
+tating and crossing SMILES representation symbols; SMILES-
+LSTM,[17] a method that predicts the next character in partial
+SMILES strings using Long Short-Term Memory (LSTM) neu-
+ral networks; SMILES-VAE,[18] which employs a Variational Au-
+toencoder (VAE) to produce molecules represented in the form
+ofSMILESstrings;andREINVENT, [5f] areinforcementlearning-
+based molecular generation method that tunes RNNs to gen-
+erate molecules represented in SMILES. To further demon-
+strate the advantages of PMMG, we also selected several graph-
+based molecular generation models for comparison, including
+MARS,[5g] amulti-objectivemoleculargenerationmethodbased
+on Graph Neural Networks (GNN) and Markov chain Monte
+Carlosampling(MCMC),utilizingmolecularfragmentstogener-
+atemolecules;Graph-MCTS, [19] agraph-basedMonteCarloTree
+Searchalgorithmthatgeneratesmoleculesina2Dmanneratom
+byatom;andGraph-GA, [19] agraph-basedgeneticalgorithmthat
+optimizesandgeneratesnewmoleculesata2Dlevelbycrossing
+molecularfragmentsandmutatingatomsorfragments.
+We generated 10 000 molecules under the same conditions
+using each method and compared the proposed method with
+the baselines based on the following evaluation metrics: Hyper-
+volume Indicator (HV), Success Rate (SR), and Diversity (Div).
+Except for PMMG, the results of other baselines were obtained
+by running the publicly available code provided by Gao et al.[20]
+Adv. Sci.2025,12,2410640 2410640(2of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 3 =====
+www.advancedsciencenews.com www.advancedscience.com
+Figure 1.Workﬂow of PMMG. a) Expansion: Expand the parent node to obtain its corresponding child nodes. b) Simulation: Simulate all child nodes,
+predict properties, and identify all non-dominated nodes among them. c) Backpropagation: Calculates the Upper Conﬁdence Bound (UCB) for each
+node based on simulation results and updates node states through backpropagation. d) Selection: Randomly select a non-dominated child node from
+the pool of non-dominated nodes as the parent node, where a non-dominated node is deﬁned as one that is not inferior to any other node in at least
+one property. e) Non-dominated solutions: Collect sampled molecules throughout the process, eliminate dominated molecules, and obtain the non-
+dominatedsolutionset.f)TheoverallworkﬂowofPMMG.
+a n dN a t h a ne ta l .[17] The predictors for bioactivity (speciﬁcally
+for EGFR and HER2), membrane permeability, metabolic sta-
+bility, solubility, and acute toxicity were developed by Yoshizawa
+etal.[6b,21] Theobjectivesoptimizedwerenormalizedtotherange
+[0,1].
+2.2.PerformanceofPMMG
+The results are summarized inTable 1. Overall, PMMG out-
+performed all baselines in three key metrics: HV, SR, and
+Div. Regarding the HV metric, the Pareto front generated by
+Adv. Sci.2025,12,2410640 2410640(3of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 4 =====
+www.advancedsciencenews.com www.advancedscience.com
+Table 1.Comparisonofeightdiﬀerentmoleculegenerationmethodsunder
+thescenarioofoptimizingseventargetssimultaneously.
+Method HV SR Div
+PMMG 0.569 ±0.054 51.65% ±0.78% 0.930 ±0.005
+SMILES_GA 0.184 ±0.021 3.02% ±0.12% 0.889 ±0.003
+SMILES_LSTM 0.433 ±0.027 14.66% ±0.45% 0.915 ±0.009
+SMILES_VAE 0.134 ±0.061 8.58% ±1.36% 0.906 ±0.011
+REINVENT 0.329 ±0.047 9.63% ±0.29% 0.915 ±0.018
+MARS 0.275 ±0.066 12.72% ±0.41% 0.913 ±0.006
+Graph_GA 0.199 ±0.009 6.77% ±0.33% 0.896 ±0.008
+Graph_MCTS 0.237 ±0.039 2.38% ±0.11% 0.924 ±0.001
+our algorithm achieved an HV of 0.569, outperforming the
+best-performing baseline by 31.4%. This indicates that PMMG
+morethoroughlyexploredthechemicalspace’sParetofrontiers,
+demonstrating the greater potential for generating molecules
+that excel across multiple objectives. In terms of the SR metric,
+the success rate of molecules generated by PMMG reached an
+impressive 51.65%, far exceeding the results of the other base-
+linesby2.5times.
+These ﬁndings suggest that in the simultaneous optimiza-
+tion of seven objectives, other methods struggled to produce a
+signiﬁcant number of performant molecules meeting all prop-
+ertycriteria,whereasPMMGsuccessfullydiscoveredmoresuch
+molecules, approximately one for every two molecules gener-
+ated. Regarding molecular diversity, although the diversity of
+molecules generated by several methods was comparable, our
+method still held a slight advantage. The majority of the gen-
+eratedmoleculesshowedTanimotosimilaritycoeﬃcientsbelow
+0.7, indicating high structural novelty. This phenomenon may
+be attributed to the tendency of other methods to become con-
+ﬁned within a speciﬁc property dimension while attempting to
+optimizemultipleobjectivessimultaneously,leadingtothegen-
+erationofnumerousstructurallysimilarmolecules.Incontrast,
+ourmethodeﬀectivelydistributesmoleculesacrossmultidimen-
+sionalParetofrontiers,witheachmoleculeexhibitingadvantages
+in diﬀerent dimensions. This allows for the generation of a di-
+versearrayofmolecularstructures.
+2.3.PerformanceonIndividualObjectives
+Next, we analyze the performance from the perspective of in-
+dividual targets. The distribution of all molecules generated
+by each method across each property target is depicted in
+Figure 2. Notably, PMMG demonstrates signiﬁcant advantages
+over other baselines, particularly in terms of inhibitory activ-
+ity against EGFR. For properties such as solubility, permeabil-
+ity, and metabolic stability, PMMG yields results comparable
+to the best-performing baseline method. In terms of toxicity
+andsynthesizability,lowerscoresindicatebetterproperties.Over
+90% of the molecules generated by PMMG fall below the toxic-
+ity threshold of 3.0 and have synthesizability scores below 4.0.
+This demonstrates a signiﬁcant advantage over methods such
+as SMILES_GA and MARS. Upon comprehensive examination
+of the molecular distribution, it is evident that PMMG gener-
+ates molecules predominantly within higher score ranges. This
+indicates that our method achieves results across all seven tar-
+gets that are comparable to or surpass those of the baseline
+methods.
+The generated molecules exhibit a molecular weight range of
+300 to 500 Daltons, with an average molecular weight of 400
+Daltons. This distribution is relatively uniform, with no signif-
+icant clustering or deviation. The molecules encompass a vari-
+ety of structural scaﬀolds, including aromatic rings, heterocy-
+cles, and fused rings, indicating eﬀective exploration of diverse
+chemical spaces during the generation process. Furthermore,
+these molecules feature an array of functional groups, such as
+hydroxyl, amino, and carboxyl groups, which are crucial for en-
+hancing binding aﬃnity and pharmacokinetic properties. To vi-
+sualize the diversity of molecular structures, we employed Uni-
+formManifoldApproximationandProjection(UMAP) [22] forour
+analysis. UMAP maps molecular structures onto a 2D plane
+based on their molecular ﬁngerprints. As shown inFigure 3,
+the molecular distributions generated by the various models ex-
+hibit signiﬁcant similarity. Notably, the molecules produced by
+the PMMG model are able to cover the vast majority of the
+chemicalspaceexploredbyothermodels,whichalignswellwith
+the diversity (div) results presented in Table1, further conﬁrm-
+ing that the outcomes are not attributable to random chance.
+Overall, PMMG exhibits the capability to maintain molecu-
+lar structural diversity while achieving excellent optimization
+performance.
+In addition, the synthetic accessibility of molecules is a cru-
+cial factor when evaluating the practical applicability of genera-
+tivemodels.Inadditiontoassessingsynthetic-relatedproperties
+suchasQEDandSAScoreforthetargetmolecules,weperformed
+adeeperanalysisusingtheretro-synthetictoolAiZynthFinder, [23]
+which evaluates the synthesizability of each molecule and pro-
+posesfeasiblesyntheticroutes.Forthisevaluation,werandomly
+selected 100 molecules generated by each model and calculated
+the percentage of synthesizable molecules. This evaluation was
+repeatedthreetimestoensurerobustness.Asshownin Table2,
+the average synthetic accessibility of molecules generated by
+PMMG reached 74.33%, second only to REINVENT, placing
+PMMG among the leading state-of-the-art models. This result
+furtherhighlightsthepracticalutilityofPMMGinreal-worldsce-
+narios.
+Overall, PMMG’s ability to generate molecules with a wide
+rangeofmolecularweightsanddiversestructuralfeatures,while
+maintainingconsistentqualityundervaryingconditions,under-
+scores its potential as a powerful tool for drug discovery. This
+capability to explore broad chemical space and produce stable,
+high-aﬃnitymoleculespositionsitasavaluableasset inthede-
+velopmentofnewtherapeuticagents.
+2.4.PropertyAnalysisofTop-RankedMolecules
+Furthermore,weanalyzedthedistributionofthetop500ranked
+moleculesproducedbyeachmethodforeachtarget,asshownin
+Figure 4. Apart from SAScore, where methods like Graph_GA,
+Graph_MCTS,andMARSexhibitamorefavorabledistribution,
+PMMG demonstrates absolute superiority across most objec-
+tives, especially in terms of inhibitory activity against EGFR,
+metabolicstability,andQED.Insummary,underthescenarioof
+Adv. Sci.2025,12,2410640 2410640(4of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 5 =====
+www.advancedsciencenews.com www.advancedscience.com
+Figure 2. Performance on multi-objective optimization. a) The framework of PMMG in experiments. b) The distribution of the molecules generated
+by each method on seven objectives. Each ﬁgure represents the distribution for a diﬀerent target: EGFR, Solubility, Metabolic Stability, Permeability,
+Toxicity,QED,andSAScore.Ineachﬁgure,thediﬀerentcolorsoftheviolinplotsrepresentsevendiﬀerentmethods,includingPMMGandsixbaselines .
+The vertical axis indicates the score range for each target. The width and length of the violin plots represent the enrichment of molecules within the
+correspondingscorerange.c)Pairwisescatterplotsforeachobjectivepair.
+Adv. Sci.2025,12,2410640 2410640(5of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 6 =====
+www.advancedsciencenews.com www.advancedscience.com
+Figure3. UMAPplotofmolecules.a)Thecomparisonofmoleculardistributionsgeneratedbytheeightmethods.b–i)TheUMAPdistributionmapsof
+themoleculesgeneratedbyPMMG,SMILES_GA,SMILES_LSTM,SMILES_VAE,REINVENT,Graph_GA,Graph_MCTS,andMARS,respectively.
+optimizingmultipletargetssimultaneously,PMMGconsistently
+identiﬁes molecules with more advantageous properties on in-
+dividual targets, providing a partial explanation for the overall
+Table 2.Analysisofthesynthesizabilityofmodel-generatedmoleculesus-
+ingAiZynthFinder.
+Method SynthesisSuccessRate
+PMMG 74.33 ±2.03
+SMILES_GA 45.67 ±2.31
+SMILES_LSTM 71.78 ±1.09
+SMILES_VAE 55.80 ±1.33
+REINVENT 76.34 ±0.46
+MARS 41.05 ±1.53
+Graph_GA 43.85 ±1.16
+Graph_MCTS 31.33 ±0.87
+highersuccessrateofmoleculesfromasingle-objectiveperspec-
+tive.
+Among these 500 molecules, we identiﬁed several structural
+scaﬀolds with promising pharmacological activity, such as ben-
+zothiazole, indole, and quinoline. These scaﬀolds are preva-
+lent in many known drugs and are associated with favorable
+pharmacologicalandpharmacokineticproperties.Inadditionto
+thesecorescaﬀolds,thegeneratedmoleculesalsofeatureavari-
+etyoffunctionalgroupsthatarecriticalforenhancingbothbind-
+ing aﬃnity and pharmacokinetic properties. Functional groups
+such as hydroxyl, amino, and carboxyl play signiﬁcant roles in
+the interaction between drug molecules and their biological tar-
+gets. Hydroxyl groups, for instance, can form hydrogen bonds
+withtargetproteins,improvingbindingspeciﬁcityandstrength.
+Amino groups are known to increase solubility and enhance
+the ability of molecules to interact with various biological en-
+vironments, which is essential for eﬀective drug distribution
+and absorption. Carboxyl groups contribute to the overall stabil-
+Adv. Sci.2025,12,2410640 2410640(6of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 7 =====
+www.advancedsciencenews.com www.advancedscience.com
+Figure4. Thedistributionofthetop-ranked500moleculesgeneratedbyeachmethodonsevenobjectives.Eachﬁgurerepresentsthepropertydistribu-
+tion of the top 500 molecules for each target: a) EGFR, b) Solubility,c) Metabolic Stability,d) Permeability, e) Toxicity, f) QED, and g) SAScore. In each
+ﬁgure, the vertical axis represents diﬀerent methods, including PMMG and six baselines, and the horizontal axis represents the property distribution
+scores for the target. In the heatmap, the number in each cell indicates the number of molecules in that range, with darker colors representing higher
+numbersofmolecules.
+ity and reactivity of the molecules, facilitating stronger interac-
+tion with target sites and often improving the metabolic stabil-
+ityofdrugcandidates.Furthermore,thepresenceofthesefunc-
+tionalgroupsandscaﬀoldssuggeststhatthegeneratedmolecules
+not only have high binding aﬃnity but also possess favorable
+drug-like properties. This dual advantage underscores the po-
+tential of these molecules to be developed into eﬀective thera-
+peutic agents. The diversity and richness of the chemical space
+explored by these 500 molecules provide a robust foundation
+for subsequent structural optimization and new drug develop-
+ment,aimingtoenhanceeﬃcacyandreducepotentialoﬀ-target
+eﬀects. By leveraging advanced computational methods and
+integrating predictive properties, we can streamline the identi-
+ﬁcation of high-potential candidates, ultimately accelerating the
+drug discovery process and improving the success rate of devel-
+opingnewtherapeutics.
+2.5.DesignofEGFR/HER2Dual-TargetInhibitors
+EGFR (Epidermal Growth Factor Receptor) is a receptor tyro-
+sinekinaselocatedonthecellmembrane,involvedinregulating
+cell growth, diﬀerentiation, and survival.[14c] In various cancers,
+EGFR is overexpressed or mutated, leading to abnormal prolif-
+Adv. Sci.2025,12,2410640 2410640(7of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 8 =====
+www.advancedsciencenews.com www.advancedscience.com
+Table 3.Criteriaofobjectives.
+Objective Criteria
+EGFR >5.5
+HER2 >5.5
+Solubility >−3.5
+Permeability >0.4
+Metabolicstability >45
+Toxicity <3
+QED >0.6
+SAScore <4
+eration of cancer cells, thus making it a signiﬁcant therapeutic
+target.HER2(HumanEpidermalGrowthFactorReceptor2),also
+knownasERBB2,isanimportantcellsurfacereceptorfrequently
+overexpressedintumorssuchasbreastcancer. [24] Recentstudies
+haveshownthatEGFRandHER2canbeinterrelatedandsyner-
+gistically interact in some cancers. Therefore, simultaneous in-
+hibition of both receptors is considered to be more eﬀective for
+blocking related signaling pathways. Currently, Lapatinib[25] is
+theonlyFDA-approveddualEGFR/HER2inhibitordrug.
+In this design scenario, we consider EGFR and HER2 as two
+target proteins for optimization, while solubility, permeability,
+metabolicstability,toxicity,SAScore,andQEDasotherbiochem-
+ical objectives. We ﬁrst applied the criteria outlined inTable3
+toscreenallthemolecules,ultimatelyselecting2000molecules.
+The representative molecules from this selection are presented
+in Table 4. These molecules exhibit predicted inhibitory activ-
+ity against EGFR and HER2 above 6.0, along with satisfactory
+scoresinotherADMETproperties,drug-likeness,andsynthetic
+accessibility. Consistent with previous studies,[26] the most po-
+tent EGFR/HER2 dual inhibitors typically feature a pyrimidine
+core structure. In the case of de novo generation, the majority
+ofmoleculesinTable 4alsopossessapyrimidinecorestructure,
+demonstratingthescientiﬁcvalidityandeﬀectivenessofthegen-
+erationmethod.
+Subsequently, we employed Glide [27] to dock the 2000
+moleculesselectedinthepreviousstepagainstEGFRandHER2,
+followedbypropertypredictionusingADMETlab2.0. [28] Weeval-
+uated molecular binding aﬃnity based on the ranking of Glide
+dockingscores,wherelowerscorestypicallyindicatebetteraﬃn-
+ity. According to ADMETlab2.0, LogP denotes the logarithm of
+aqueous solubility value, while Metabolism indicates the likeli-
+hood of a molecule serving as a substrate for enzymes such as
+CYP1A2/2C19/2C9/2D6/3A4,reﬂectingamolecule’smetabolic
+stability. Permeability is assessed using Caco-2 cell permeabil-
+ity to represent drug permeability. SAScore and QED respec-
+tively represent the synthetic accessibility and drug-likeness of
+molecules.
+Toevaluatethebindingaﬃnityofthegeneratedmoleculesto
+EGFR and HER2, we ﬁrst conducted a statistical analysis of the
+dockingscoresforeachmolecule.Figure 6illustratesthat11.28%
+ofthemoleculesgeneratedbyPMMGachievedscoreslowerthan
+lapatinibwithadockingscoreof −7.88ontheEGFRtarget,while
+the docking scores of 9.72% molecules were lower than that of
+lapatinibontheHER2targetwithadockingscoreof −9.30.No-
+tably, 2.96% of the molecules outperformed lapatinib on both
+targets. For the EGFR target, Figure6 shows that the majority
+of the molecules have docking scores concentrated between−8
+and−4,withamedianscoreof ≈−6.Somemoleculeswithlower
+dockingscoreswereprioritizedforfurtheranalysis.Similarly,for
+theHER2target,thedockingscoresofthegenerated molecules
+mainly ranged from−7t o−10. The median docking score was
+≈−8,slightlyhigherthanthemedianscorefortheEGFRtarget.
+Based on the results from screening, we further identiﬁed
+and analyzed the top-ranking molecules with high docking
+scores for EGFR and HER2 by considering additional six pre-
+dictive properties. Figure 5 illustrates examples of molecules
+based on the results, where the molecules exhibit docking
+scores comparable to or even surpassing lapatinib, indicat-
+ing their potential eﬀectiveness against both targets. Addi-
+tionally, these molecules demonstrate similar or superior pre-
+dicted properties compared to lapatinib, including LogP, mem-
+brane permeability, metabolic stability, synthetic accessibility,
+anddrug-likeness,suggestingtheirpotentialaspromisingdrug
+candidates.
+2.6.DockingConformation
+Figure6illustratesthedockingconformationsofthreemolecules
+andlapatinibbindingtoEGFRandHER2.Structurally,Molecule
+1 exhibits a conformation similar to lapatinib, with a docking
+score of−7.74 against EGFR. The docking poses indicate that
+Molecules 1, 2, and 3 can eﬀectively bind into the active site
+of EGFR, stabilizing through multiple hydrogen bonds and hy-
+drophobic interactions. Notably, the hydroxyl group of Molecule
+1 forms a strong hydrogen bond with the critical amino acid
+ASP863inEGFR,whichmayhelptosigniﬁcantlyenhancebind-
+ingaﬃnity.Molecule1alsodemonstratesalowerdockingscore
+of−11.12againstHER2,suggestingthatitmayexhibitarelatively
+highbindingaﬃnityforHER2.Dockingsimulationsrevealthat
+the aromatic ring structure of Molecule 1 interacts with the hy-
+drophobicpocketofHER2,whileitsaminogroupformsastable
+hydrogenbondwiththekeyresidueMET801.Thisﬂexiblestruc-
+tureallowsittoadapttotheactivesitesofbothtargets.Molecules
+2 and 3 also form eﬀective hydrophobic interactions and hydro-
+gen bonds with both targets through their aromatic rings and
+polargroups,showcasingexcellentmulti-targetbindingcapabil-
+ities. By analyzing the structural characteristics of high-aﬃnity
+dual-target molecules, we found that these molecules typically
+possess good molecular ﬂexibility and multifunctional groups,
+enablingthemtomeetthebindingrequirementsofdiﬀerenttar-
+gets.Theseﬁndingsprovideimportantguidingprinciplesforthe
+designofmulti-targetdrugs.
+2.7.AbsoluteBindingFreeEnergy(ABFE)Calculations
+To further validate the eﬀectiveness of our method, the abso-
+lute binding free energies for Lapatinib and the three designed
+molecules against both targets were calculated using the Dou-
+ble Decoupling Method (DDM)[29] implemented in NAMD3.[30]
+All simulation inputs were automatically generated by BFEE23.
+Theboundandunboundstatesweredividedinto200 𝜆and100
+𝜆 windows, respectively. Each window performed a 0.4 ns of
+Adv. Sci.2025,12,2410640 2410640(8of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 9 =====
+www.advancedsciencenews.com www.advancedscience.com
+Table 4.ExamplesofMoleculeswithPredictedPropertiesGeneratedbyPMMG.
+Molecule EGFR HER2 Solubility Permeability Metabolic_stability Toxicity QED SAScore
+7.57 6.73 −2.17 0.91 63.70 2.45 0.64 3.26
+7.64 6.43 −3.45 1.19 70.02 2.94 0.73 2.81
+7.48 6.75 −3.42 1.48 67.38 2.82 0.71 2.85
+7.69 5.82 −2.29 1.36 66.47 2.21 0.81 3.24
+7.04 7.01 −2.55 0.87 74.66 2.57 0.71 2.56
+7.12 6.88 −2.59 0.42 71.20 2.99 0.78 2.86
+6.60 7.10 −2.62 0.45 63.46 2.18 0.67 2.62
+6.87 6.62 −2.09 1.23 64.55 2.44 0.74 3.17
+(Continued)
+Adv. Sci.2025,12,2410640 2410640(9of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 10 =====
+www.advancedsciencenews.com www.advancedscience.com
+Table 4.(Continued)
+Molecule EGFR HER2 Solubility Permeability Metabolic_stability Toxicity QED SAScore
+6.01 7.26 −2.50 0.80 58.30 2.30 0.70 2.49
+7.20 6.17 −1.90 1.10 61.18 2.85 0.76 3.36
+Figure 5.Predicted properties of Example Molecules. a) The docking score and predicted properties of lapatinib. b) The docking score and predicted
+properties of Molecule 1. c) The docking score and predicted properties of Molecule 2. d) The docking score and predicted properties of Molecule 3.
+The ﬁgures include seven properties: EGFR docking score, HER2 docking score, LogP, Metabolism, Permeability, SAScore, and QED. The radar charts
+displaytheirperformanceforeachobjective.
+equilibration and 2 ns of alchemical transformation, incorpo-
+rating the DWS FEP and WTM-eABF algorithms. The absolute
+bindingfreeenergieswerepostprocessedusingtheBARestima-
+torintheBFEE2. [31] Moredetailsofthepreparation,simulation,
+and post-processing are provided in SI. The experimental bind-
+ingaﬃnitiesforlapatinibwerecalculatedbasedonits Ki value.[32]
+As shown inTable5, for the EGFR target, molecules 1 (ΔG =
+−8.58 ± 4.06kcal mol−1)a n d3(ΔG =− 7.42 ± 0.52 kcal mol−1)
+exhibit binding free energies lower than that of the positive
+drug lapatinib. However, both molecules still have potential for
+Adv. Sci.2025,12,2410640 2410640(10of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 11 =====
+www.advancedsciencenews.com www.advancedscience.com
+Figure6. Dockingresults.DistributionofDockingScoresforPMMG-GeneratedMoleculesona)EGFRandb)HER2.Thehorizontalaxisintheﬁgures
+representsdockingscores,andtheverticalaxisrepresentsdensitydistribution.In(a),theshadedarea(orange)representstheproportionofmol ecules
+withdockingscores <−7.88.In(b),theshadedarea(darkgreen)representstheproportionofmoleculeswithdockingscores <−9.30.Thescores −7.88
+and −9.30 are the docking scores of Lapatinib for the EGFR and HER2 targets, respectively. c) Docking of example molecules; the molecule circled in
+theredboxisthereferencemolecule,lapatinib.d)DockingconformationsofMolecules1,2,3,andLapatinibwithEGFRandHER2.Thefourmolecules
+intherowfromlefttorightareLapatinib,Molecule1,Molecule2,andMolecule3,dockedwithEGFR(1M17)andHER2(3PP0),positionedwithinthe
+proteinpocket.
+Adv. Sci.2025,12,2410640 2410640(11of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 12 =====
+www.advancedsciencenews.com www.advancedscience.com
+Table 5.The predicted absolute binding free energies for lapatinib and
+threedesignedmolecules.
+EGFR HER2
+Lapatinib −11.70kcalmol −1 −10.82kcalmol −1
+Molecule1 −8.58±4.06kcalmol −1 −12.85 ±0.58kcalmol −1
+Molecule2 −0.30±0.54kcalmol −1 −11.23 ±0.67kcalmol −1
+Molecule3 −7.42±0.52kcalmol −1 −13.86 ±0.49kcalmol −1
+further optimization and structural modiﬁcations to improve
+their binding aﬃnities. In contrast, molecule 2 (ΔG =− 0.30
+±0.54kcalmol −1)showssigniﬁcantlyweakerbindingthanlapa-
+tinibandisunsuitablefortheEGFRtarget.FortheHER2target,
+molecules 1 (ΔG =− 12.85 ± 0.58 kcal mol−1), 2 (ΔG =− 11.23
+± 0.67 kcal mol−1), and 3 (ΔG =− 13.86 ± 0.49 kcal mol−1)a l l
+outperform lapatinib (ΔG =− 10.82 kcal mol−1), with molecule
+3 exhibiting the best binding aﬃnity and computational stabil-
+ity.Overall,molecules1and3areidentiﬁedaspromisingcandi-
+datemolecules,particularlywithsigniﬁcantadvantagesinHER2
+targeting.
+2.8.GenscoreEvaluation
+In addition to molecular docking, we further assessed the aﬃn-
+ity of molecules to their targets using Genscore,[33] am a c h i n e
+learning-based protein-ligand scoring framework developed by
+ourgroup.Genscorehasdemonstratedexceptionalperformance
+in comparing the relative binding free energies of diﬀerent
+molecules and has consistently shown strong predictive power
+across several benchmark datasets.[33] Higher scores correlate
+withbetterpotentialbindingaﬃnity.Forthisevaluation,weem-
+ployedthetop-performingGatedGCN_1.0model,andtheresults
+aresummarizedin Table6.FortheEGFRtarget,molecules2and
+3achievedscorescomparabletothatofthereferencecompound,
+lapatinib. For the HER2 target, all three molecules signiﬁcantly
+outperformedlapatinib,suggestingthattheymayformstronger
+bindingwiththetargetsthanthereferencemolecule.
+3.Discussion
+Most multi-objective optimization methods exhibit diminishing
+performancewithanincreasingnumberofobjectives. [34] Inthe
+case ofPMMG,thisincreaseinobjectives correlateswith anex-
+pansion of the chemical space, leading to exponential growth
+in exploration volume. Consequently, with adequate time and
+computational resources, the model acquires increased auton-
+omy in navigating the Pareto front, thereby alleviating the eﬃ-
+ciencydownturnlinkedtoheightenedobjectivecomplexity.This
+Table 6.RescoringResultsUsingGenScore(GatedGCN_1.0).
+EGFR↑ HER2↑
+Lapatinib 31.43 20.80
+Molecule1 18.55 37.90
+Molecule2 37.74 31.71
+Molecule3 30.34 33.90
+adaptabilityprovesparticularlyadvantageousindrugdesigncon-
+texts characterized by higher dimensionality, substantially aug-
+mentingPMMG’spracticaleﬃcacy.AlthoughPMMGisbasedon
+a 1D SMILES representation, its performance still outperforms
+some graph-based methods that can capture molecular struc-
+tural information more precisely. This highlights the potential
+ofcombiningParetooptimizationwithMonteCarloTreeSearch
+algorithm to provide powerful guidance in exploring molecular
+space. Furthermore, we are also considering the integration of
+this approach with graph-based or 3D-based methods to poten-
+tially enhance performance further, which remains a direction
+for future exploration. However, at present, we continue to be-
+lieve that this method is particularly well-suited 1D molecular
+representations.
+Furthermore, we have developed a multi-objective optimiza-
+tion algorithm for our method that utilizes feedback from re-
+ward models, such as QSAR models, during the optimization
+process. It can be stated that the algorithm itself is indepen-
+dent of the reward model, oﬀering exceptional ﬂexibility. As a
+result, the upper limit of our method’s performance is largely
+determined by the reward model. This allows us to eﬀortlessly
+integrate a multiﬁdelity feedback mechanism, such as multiﬁ-
+delity Bayesian optimization (MF-BO), into our framework, in-
+corporatinglower-andmedium-precisionmethodslikeFEPand
+docking, as well as high-precision wet lab results. In Bayesian
+optimization, as more experimental feedback is incorporated,
+the performance of the reward model improves, allowing the
+method to achieve accuracy that approaches, or even becomes
+indistinguishablefrom,realexperimentalresults.Ofcourse,wet
+lab experiments and methods like FEP also incur higher costs,
+which highlights both the high potential and ﬂexibility of our
+algorithm.
+However,PMMGexhibitscertainlimitations.Despitethemul-
+tiplicity of objectives for optimization, each objective may entail
+distinctrequirements.Whilecertainobjectivesnecessitateadher-
+encetospeciﬁccriteriasuchaspermeabilityandtoxicity,others,
+suchasproteintargetaﬃnity,generallybeneﬁtfromhigherval-
+ues. Thus, while eﬀectively exploring speciﬁc vector directions
+in chemical space is crucial, extensive exploration along certain
+directions may prove futile. Another signiﬁcant concern arises
+from PMMG’s capacity to generate an extensive Pareto front
+comprising thousands of molecules, rendering the selection of
+desired molecules from this vast array challenging. Future op-
+timization and improvements could prioritize directional explo-
+rationandsamplingalongspeciﬁcdirectionsoftheParetofront
+inthechemicalspacebasedonuserdemands.
+Moreover, limitations inherent in MCTS, RNN, and SMILES
+grammaritselfmayaﬀectthevalidity,chirality,andspeciﬁcityof
+the generated molecules. As sequence length increases, RNNs
+maysuﬀerfromgradientexplosion,failingtoeﬀectivelycapture
+long-range dependencies. Therefore, alternatives such as trans-
+formers could be explored for molecular generation to address
+thisissue.However,itisimperativetoacknowledgethattheadop-
+tionofthesemethodologiesmayintroduceheightenedalgorith-
+micandsearchcomplexities.TheintegrationofMCTSwithneu-
+ral networks requires meticulous attention to algorithm design
+andparametertuningtostrikeabalancebetweenexplorationand
+exploitationwithinthesearchspace.
+Adv. Sci.2025,12,2410640 2410640(12of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 13 =====
+www.advancedsciencenews.com www.advancedscience.com
+Certainly, assessing a model’s quality should not rely solely
+on experimental results, but computational eﬃciency and scal-
+ability are equally important factors. Due to the complex explo-
+rationstepsandﬁlteringmechanismsinvolved,PMMGmayre-
+quiremorecomputationalresourcescomparedtoothermodels.
+To be speciﬁc, our server is equipped with one NVIDIA A100-
+SXM4-80GB GPU and two 64-core Intel(R) Xeon(R) Platinum
+8358P CPUs @ 2.60 GHz. In practice, PMMG requires an av-
+erage runtime of 16 h to generate 10 000 molecules, whereas
+other baseline models complete this task within 1 h. These re-
+sults clearly show that PMMG has a higher computational cost.
+However,whenconsideringthemulti-yeartimescaleofdrugdis-
+coveryanddevelopment,suchcomputationalcostsarerelatively
+insigniﬁcant.Importantly,theexperimentalresultsdemonstrate
+thatPMMGeﬀectivelyutilizesthesecomputationalresourcesto
+identifyhigher-qualitypotentialmolecules,reﬂectingaresource
+utilization rate comparable to, if not better than, that of other
+models.Overall,thescalabilityandpracticalityofPMMGaresub-
+stantiatedbyitsperformance.
+4.Conclusion
+In conclusion, we propose PMMG by integrating the principle
+of Pareto Optimality with MCTS for multi-objective molecular
+generation,targetinghightargetselectivityandaﬃnity,ADMET
+properties, QED, and SAScore, among others. To validate the
+model’s eﬀectiveness, we compare it with several state-of-the-
+art methods. PMMG achieves superior results across all three
+essential metrics of multi-objective molecular generation, i.e.,
+HV,SR,andDiv,inoptimizinginhibitoryactivityagainstEGFR,
+solubility, permeability, metabolic stability, SAScore, and QED.
+The SR of the molecules reached 51.65%, signiﬁcantly surpass-
+ing other methods. Subsequently, we conducted a dual-target
+drug molecule design for EGFR and HER2, successfully gen-
+erating molecules with docking scores and predicted properties
+comparabletoorevensurpassinglapatinibincertainproperties,
+therebyvalidatingtheeﬀectivenessofthemodel.
+While there is substantial room for further development, our
+current version of the PMMG has achieved signiﬁcant mile-
+stonesinmulti-objectivemoleculargeneration.Byeﬀectivelybal-
+ancingandoptimizingmultiplemolecularpropertiessimultane-
+ously, such as potency, selectivity, and ADMET proﬁles, PMMG
+demonstrates a robust capability to address the complex and of-
+ten conﬂicting requirements inherent in drug discovery. Utiliz-
+ingstate-of-the-art algorithms, our model hasshown promising
+results in generating novel compounds that align with desired
+therapeuticproﬁles.Thisunderscoresthemeaningfulcontribu-
+tionofourmodeltotheﬁeldofmulti-objectivemoleculargener-
+ation, providing a versatile and powerful tool that enhances the
+eﬃciency and accuracy of identifying potential drug candidates.
+The achievements of PMMG pave the way for future advance-
+ments in drug design and discovery, where the integration of
+moresophisticatedmachinelearningtechniquesandtheexpan-
+sionofchemicalspaceexplorationareanticipated.Asthemodel
+continuestoevolve,itholdsthepotentialtorevolutionizetheap-
+proachtomoleculargeneration,oﬀeringasigniﬁcantadvantage
+in the development of new therapeutics with optimized proper-
+ties.
+5.ExperimentalSection
+PMMG: PMMGintegratestheParetoalgorithminfouraspects:
+Reward Redeﬁnition: The reward was redeﬁned in the backpropagation
+stepasavectorconsistingofndimensions,whereeachdimensionrepre-
+sentsoneoftheobjectivesweaimtooptimize,ratherthanasinglevalue
+obtainedbytheweightedsum.
+reward = [o1,o2,o3,…,on] (1)
+UCBRedeﬁnition:Similarly,theUCBwasredeﬁnedintheselectionstep
+as an n-dimensional vector, composed of the average reward valuēr,t o -
+tal exploration countsnvisits, and Exploration coeﬃcientc, to guide node
+selection.
+UCB = f (̄r,nvisits,c) (2)
+Optimal Child Node Pool: An optimal child node pool was deﬁned for
+each parent node. During the simulation and backpropagation process,
+each child node is assigned an n-dimensional UCB. Before the selection
+step, all child nodes are pairwise compared along each dimension of the
+UCB.Ifachildnodeisnotinferiortoanotherchildnodeacrossalldimen-
+sions,itistermedasanon-dominatednode,whilethelatterisconsidered
+asadominatednode,bothofwhichrepresentatokenofSMILESthatcan
+potentially form molecules in the simulation step. Then we remove dom-
+inatedchildnodesandaddallnon-dominatedchildnodestotheoptimal
+child node pool, resulting in a set of non-dominated solutions. During
+node selection, a random optimal child node from the pool is chosen for
+expansion.
+Optimal Molecule Pool: We deﬁne an optimal molecule pool as the ﬁ-
+nal output molecule pool. All generated molecules are compared to all
+molecules in the pool based on their n-dimensional reward values. If a
+molecule is not dominated by any molecule in the pool, it is added to
+thispool.Conversely,ifamoleculeisdominated,itisdiscarded.Similarly,
+if an old molecule in the optimal molecule pool is dominated by a new
+molecule,theoldmoleculeisalsodiscarded.
+RNN: The RNN model utilized in the study comprises an 81-
+dimensional embedding layer and two 256-dimensional GRU layers,
+trained on 48 core Intel(R) Xeon(R) Gold 6240R CPUs @ 2.40GHz.
+The training dataset contains ≈250 000 compounds from the ZINC
+database,[35] with training parameters as follows: a learning rate of 0.01,
+abatchsizeof256,andtrainingoveratotalof100epochs.
+Pareto Optimality in Multi-Objective Optimization: The Pareto Opti-
+mality, also known as Pareto front method, is commonly used in multi-
+objectiveoptimization.Thecoreideaofthisalgorithmoriginatesfromthe
+concept of Pareto optimality proposed by the French mathematician Vil-
+fredoPareto,[9] whichstatesthatundergivenconstraints,itisimpossible
+to improve one objective without sacriﬁcing at least one other objective.
+The Pareto algorithm aims to ﬁnd such a set of solutions, forming the
+Paretofrontier,whichincludesallnon-dominatedoptimalsolutions.First,
+somerelevantconceptsoftheParetoalgorithmwereintroducedinmulti-
+objectiveoptimizationproblems.
+Pareto dominance: A decision vectora is said to Pareto dominateb if
+theperformanceof aonanyobjectivefunctionisnoworsethanthatof b.
+This concept emphasizes the balance and trade-oﬀs in multi-objective
+optimization, as the superiority of a solution depends not only on the
+optimality of individual objectives but also on the relative performance
+acrossmultipleobjectives.ByidentifyingParetodominancerelationships,
+researchers can determine the set of non-dominated solutions in the en-
+tire objective space, forming the Pareto frontier, which provides a more
+comprehensive selection of solutions for the ﬁnal resolution of the prob-
+lem.
+Pareto optimal solution: In a multi-objective optimization problem, let
+x represent a decision space containing possible solutions. For each so-
+lution x, there arem objective functionsf1(x), f2(x)……fm(x), representing
+the performance under diﬀerent objectives. The Pareto optimal solution
+canbeformallydeﬁnedasfollows:
+Supposetherearetwosolutions x1 andx2,forall j=1,2,…,m,itisdeﬁne:
+Adv. Sci.2025,12,2410640 2410640(13of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 14 =====
+www.advancedsciencenews.com www.advancedscience.com
+1)x1 isnotinferiorto x2 onobjective j,denotedas fj(x1) ≥fj(x2).
+2) There exists at least one objectivek such thatx1 is superior tox2 on
+objectivek,denotedas fk(x1) >fk(x2).
+Ifx1 satisﬁestheaboveconditions,thenwesay x1 Paretodominates x2,
+denotedas x1≻x2.
+Pareto optimal solution set: typically denoted asP∗, refers to the set of
+all Pareto optimal solutions in the decision spaceX. Formally,P∗ is a set
+ofsolutionsthatsatisﬁesthefollowingconditions:
+1)Forany x∈X,thereexistsnosolution y∈P∗suchthat y≻x.
+2)Thereexistsatleastonesolution z∈P∗suchthatforany x∈X,z⪯x.
+Thisimpliesthatthesolutionsin P∗cannotbedominatedbyanyother
+solutiononallobjectivefunctions,andatleastonesolutionissuperiorto
+othersolutionsonatleastoneobjective.Suchasetofsolutionsformsthe
+Paretofrontier,representingthesetofnon-dominatedsolutionsinmulti-
+objectiveoptimizationproblems.
+Pareto frontier: The Pareto frontier is an important concept in multi-
+objective optimization problems, typically denoted as PF. It refers to a
+set of solutions in the decision space that cannot be dominated by any
+other solution on all objective functions. These solutions’ objective func-
+tionmappingsformtheParetooptimalfrontierorParetofrontfaceofthe
+problem. For a two-objective problem, the Pareto optimal frontier is typi-
+callyacurve,whereasformultipleobjectives,itisusuallyahyper-surface.
+Monte Carlo Tree Search: MCTS[13] is a decision-making algorithm
+based on the Monte Carlo method, widely used in areas such as gaming,
+planning,andgeneration.Intheﬁeldofdrugdesign,theMCTSalgorithm
+is often employed in molecular generation models, such as ChemTS,[36]
+where the nodes of the search tree represent diﬀerent conformations or
+topologicalstructuresofmolecularstates,andtheedgesofthetreerepre-
+senttransitionsfromonemolecularstatetoanother,i.e.,diﬀerentconfor-
+mations or topological structures. The action space needs to deﬁne rea-
+sonablechemicalreactionsorconformationaltransformationsforexpand-
+ing nodes during the search. Each node records the number of visitsand
+accumulatedrewards.Inmoleculargeneration,thiscanbeinterpretedas
+the frequency of selection of a conformation or topological structure and
+its corresponding evaluation reward. The speciﬁc steps of tree expansion
+inMCTSfordrugdesignareasfollows:
+Selection: Starting from the root node, nodes are selected based on a
+certainselectionstrategy(e.g.,UCBalgorithm)untilanunexpandednode
+isfound.Inmoleculargeneration,nodeselectionmaybebasedonprevi-
+ousmoleculargenerationexperiences,tendingtoselectconformationsor
+structuresthathavenotbeensuﬃcientlyexplored.
+Expansion: Expansion is performed on the selected node by generat-
+ing new molecular states. This can be achieved by introducing new con-
+formations,topologicalstructures,orintroducingnewmoleculesthrough
+chemicalreactions.
+Simulation:Thenewlygeneratedmoleculesaresimulated,forexample,
+through evaluation using QSAR models, to obtain reward values for the
+simulated paths. This helps estimate the biological activity or drug prop-
+ertiesofthemolecules.
+Backpropagation: The obtained reward values from the simulation are
+propagated back to all nodes traversed in the search tree, updating their
+visitcountsandcumulativerewards.Thisreﬂectstheimpactofthequality
+of the newly generated molecules on all related molecular states in the
+searchtree.
+Throughout the Monte Carlo Tree Search process, the two most im-
+portant steps are node selection and backpropagation. In the backpropa-
+gation process, the core is the reward value, which is typically composed
+of visit counts and cumulative rewards. The reward value serves as a “la-
+bel” assigned to the current state during the backpropagation process.
+Themorethepropertiesalignwithourrequirementsandexpectations,the
+higher the score assigned to the node state. This label continues to par-
+ticipateinguidingthenodeselectionprocess,playingacrucialroleinthe
+exploration of the chemical space for molecular generation. In the node
+selection process, the upper conﬁdence bounds (UCB) are often used to
+represent the advantage estimate of the action, thereby determining the
+qualityofthenode.TheUCBvalueforthei-thnodeistypicallyrepresented
+asfollows:
+UCBi = vi +c
+√
+lnN
+ni
+(3)
+where vi is the average value of the i-th action,c is a constant,N is the
+total number of explorations, andni is the exploration count of the cur-
+rent node. This includes reward values and exploration situations. The
+core idea of the UCB algorithm is to prioritize actions with high average
+rewards (exploiting known information)but relatively fewer attempts (ex-
+ploringunknowninformation).Byadjustingtheparameter c,thetrade-oﬀ
+betweenexplorationandexploitationcanbebalanced.Theactionwiththe
+highestUCBvalueisselectedforfurtherexplorationorexploitation
+EvaluationMetrics: HypervolumeIndicator(HV) :HVmeasuresthevol-
+ume of the space dominated by the Pareto front of the solutions,[37]
+bounded from below by the preference point (0, 0). A higher HV value
+meansbetterqualityoftheParetofront
+HVt = volume
+(|PFt|⋃
+i=1
+vi
+)
+(4)
+SuccessRate(SR) :Theproportionofgeneratedmoleculesthatmeetthe
+expectedvaluesforallpredictedproperties.Speciﬁcally,thecriteriaareas
+follows. The criteria for standard formulation are based on the predicted
+valuesofmoleculesinthedatasetandrelevantdrugmoleculestoestablish
+theminimumpharmaceuticalrequirements.
+Diversity (Div): Diversity measures the degree of dissimilarity among
+thegeneratedmoleculesusingpairwiseTanimotosimilarityoverMorgan
+ﬁngerprints,reﬂectingthevarietyofmolecularstructures.
+Div = 2
+n(n−1)
+∑
+x≠x′∈G
+1−sim (x,x′) (5)
+Data and Code Availability: The data and source code of this study is
+freely available at GitHub (https://github.com/Liuyifeii/PMMG) to allow
+replicationoftheresults.
+SupportingInformation
+SupportingInformationisavailablefromtheWileyOnlineLibraryorfrom
+theauthor.
+Acknowledgements
+Y.L. and Y.Z. contributed equally to this work. This work was ﬁnancially
+supportedbytheNationalKeyR&DProgramofChina(2024YFA1307501),
+National Natural Science Foundation of China (22220102001, 82204210,
+82204279),andFundamentalResearchFundsfortheCentralUniversities
+(226-2022-00220).
+ConﬂictofInterest
+Theauthorsdeclarenoconﬂictofinterest.
+DataAvailabilityStatement
+Thedatathatsupporttheﬁndingsofthisstudyareavailablefromthecor-
+respondingauthoruponreasonablerequest.
+Adv. Sci.2025,12,2410640 2410640(14of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+
+===== PAGE 15 =====
+www.advancedsciencenews.com www.advancedscience.com
+Keywords
+drug design, molecular generation, multi-objective optimization, pareto
+optimality
+Received:September2,2024
+Revised:February18,2025
+Publishedonline:April4,2025
+[1] a)J.A.DiMasi,H.G.Grabowski,R.W.Hansen, J.HealthEcon. 2016,
+47,20;b)O.J.Wouters,M.McKee,J.Luyten, JAMA,J.Am.Med.Assoc.
+2020,323,844.
+[2] P.Hamet,J.Tremblay, Metabolism.2017,69s,S36.
+[3] W. Jin, R. Barzilay, T. Jaakkola,arXiv2018,https://doi.org/10.48550/
+arXiv.1802.04364.
+[4] a) J. S. Angelo, I. A. Guedes, H. J. C. Barbosa, L. E. Dardenne,Front.
+Chem.2023, 11, 1288626; b) G. Lambrinidis, A. Tsantili-Kakoulidou,
+Expert Opin. Drug Discov.2018,13,851.
+[5] a) G. Lambrinidis, A. Tsantili-Kakoulidou,Expert Opin. Drug Discov.
+2021,16,647;b)M.Mukaidaisi,A.Vu,K.Grantham,A.Tchagang,Y.
+Li,Front.Pharmacol. 2022,13,920747;c)M.Lee,K.Min, J.Chem.Inf.
+Model. 2022, 62, 2943; d) C. A. Nicolaou, N. Brown, C. S. Pattichis,
+Curr. Opin. Drug Discov. Devel.2007,10,316;e)Z.Zhou,S.Kearnes,
+L.Li,R.N.Zare,P.Riley, Sci.Rep. 2019,9,10752;f)M.Olivecrona,T.
+Blaschke,O.Engkvist,H.Chen, J.Cheminform. 2017,9,48;g)Y.Xie,
+C. Shi, H. Zhou, Y. Yang, W. Zhang, Y. Yu, L. Li,arXiv 2021, https://
+doi.org/10.48550/arXiv.2103.10432;h)W.Jin,R.Barzilay,T.Jaakkola,
+arXiv 2020, https://doi.org/10.48550/arXiv.2002.03244;i )Y .Z h u ,Z .
+Ouyang,B.Liao,J.Wu,Y.Wu,C.-Y.Hsieh,T.Hou,J.Wu, arXiv2023,
+https://doi.org/10.48550/arXiv.2305.08457;j)Y .Zhu,J.Wu,C.Hu,J.
+Yan, T. Hou, J. Wu,arXiv 2024, https://doi.org/10.48550/arXiv.2302.
+04040
+[6] a) T. Fu, W. Gao, C. Xiao, J. Yasonik, C. W. Coley, J. Sun,arXiv,https:
+//doi.org/10.48550/arXiv.2109.10469; b) T. Yoshizawa, S. Ishida, T.
+Sato,M.Ohta,T.Honma,K.Terayama, J.Chem.Inf.Model. 2022,62,
+5351.
+[7] Q. Perron, O. Mirguet, H. Tajmouati, A. Skiredj, A. Rojas, A.
+Gohier, P. Ducrot, M. P. Bourguignon, P. Sansilvestri-Morel, N. Do
+Huu, F. Gellibert, Y. Gaston-Mathé,J. Comput. Chem. 2022, 43,
+692.
+[8] Z.Chen,X.Fang,Z.Hua,Y.Huang,F.Wang,H.Wu, IEEEBIBM 2022,
+315.
+[9] P.Erridge, Br. Dent. J.2006,201,419.
+[10] A.K.Y.Low,F.Mekki-Berrada,A.Gupta,A.Ostudin,J.Xie,E.Vissol-
+Gaudin,Y.-F.Lim,Q.Li,Y.S.Ong,S.A.Khan,K.Hippalgaonkar, NPJ
+Comput. Mater.2024,10,104.
+[11] J. C. Fromer, D. E. Graﬀ, C. W. J. D. D. Coley,Digital Discov.2024, 3,
+467.
+[12] J. Westermayr, J. Gilkes, R. Barrett, R. J. Maurer,Nat. Comput. Sci.
+2023,3,139.
+[13] R.Coulom,CG2006, 2006,pp.72–83.
+[14] a)A.Reid,L.Vidal,H.Shaw,J.deBono, Eur.J.Cancer 2007,43,481;b)
+J.F.Spicer,S.M.Rudman, Target Oncol.2010,5,245;c)S.Talukdar,
+L.Emdad,S.K.Das,P.B.Fisher, Adv. Cancer Res.2020,147,161.
+[15] P.Ertl,A.Schuﬀenhauer, J. Cheminform.2009,1,8.
+[16] G.R.Bickerton,G.V.Paolini,J.Besnard,S.Muresan,A.L.Hopkins,
+Nat. Chem.2012,4,90.
+[17] N. Brown, M. Fiscato, M. H. S. Segler, A. C. Vaucher,J. Chem. Inf.
+Model.2018,59,1096.
+[18] R. Gómez-Bombarelli, J. N. Wei, D. Duvenaud, J. M. Hernández-
+Lobato, B. Sánchez-Lengeling, D. Sheberla, J. Aguilera-Iparraguirre,
+T. D. Hirzel, R. P. Adams, A. Aspuru-Guzik,ACS Cent. Sci.2018, 4,
+268.
+[19] J.H.Jensen, Chem. Sci.2019,10,3567.
+[20] W.Gao,T.Fu,J.Sun,C.Coley, arXiv2022,https://doi.org/10.48550/
+arXiv.2206.12411
+[21] Q.Meng, NeurIPS2017,3149.
+[22] L.Mcinnes,J.Healy, JOSS2018,3,861
+[23] A.Thakkar,T.Kogej,J.L.Reymond,O.Engkvist,E.J.Bjerrum, Chem.
+Sci.2020,11,154.
+[24] E.Hamilton,M.Shastry,S.M.Shiller,R.Ren, CancerTreat.Rev. 2021,
+100,102286.
+[25] M.Voigtlaender,T.Schneider-Merck,M.Trepel, RecentResultsCancer
+Res.2018,211,19.
+[26] a) L. Tan, J. Zhang, Y. Wang, X. Wang, Y. Wang, Z. Zhang, W. Shuai,
+G. Wang, J. Chen, C. Wang, L. Ouyang, W. Li,J. Med. Chem.2022,
+65,5149;b)M.Sun,J.Jia,H.Sun,F.Wang, Bioorg. Med. Chem. Lett.
+2020,30,127045.
+[27] R.A.Friesner,J.L.Banks,R.B.Murphy,T.A.Halgren,J.J.Klicic,D.T.
+Mainz,M.P.Repasky,E.H.Knoll,M.Shelley,J.K.Perry,D.E.Shaw,
+P. Francis, P. S. Shenkin,J. Med. Chem.2004,47,1739.
+[28] G. Xiong, Z. Wu, J. Yi, L. Fu, Z. Yang, C. Hsieh, M. Yin, X. Zeng, C.
+W u,A.Lu,X.Chen,T .Hou,D.C ao, Nucleic Acids Res.2021,49,W5.
+[29] S.Boresch,F.Tettinger,M.Leitgeb,M.Karplus, J.Phys.Chem.B 2003,
+107,9535.
+[30] J.C.Phillips,R.Braun,W.Wang,J.Gumbart,E.Tajkhorshid,E.Villa,
+C. Chipot, R. D. Skeel, L. Kalé, K. Schulten,J. Comput. Chem.2005,
+26,1781.
+[31] H. Fu, H. Chen, M. Blazhynska, E. Goulard Coderc de Lacam, F.
+Szczepaniak, A. Pavlova, X. Shao, J. C. Gumbart, F. Dehez, B. Roux,
+W.Cai,C.Chipot, Nat. Protoc.2022,17,1114.
+[32] E. R. Wood, A. T. Truesdale, O. B. McDonald, D. Yuan, A. Hassell, S.
+H.Dickerson,B. Ellis,C.Pennisi,E.Horne, K.Lackey,K.J. Alligood,
+D.W.Rusnak,T.M.Gilmer,L.Shewchuk, CancerRes. 2004,64,6652.
+[33] C.Shen,X.Zhang,C.Y .Hsieh,Y .Deng,D.W ang,L.Xu,J.W u,D.Li,
+Y.Kang,T.Hou,P.Pan, Chem. Sci.2023,14,8129.
+[34] C. A. Nicolaou, N. Brown,Drug Discov. Today Technol.2013, 10,
+e427.
+[35] T.Sterling,J.J.Irwin, J .C h e m .I n f .M o d e l .2015,55,2324.
+[36] X. Yang, J. Zhang, K. Yoshizoe, K. Terayama, K. Tsuda,Sci. Technol.
+Adv. Mater.2017,18,972.
+[37] E. Zitzler, L. Thiele, in IEEE Trans. Evol. Comput. , IEEE, New York
+1999.
+Adv. Sci.2025,12,2410640 2410640(15of15) ©2025TheAuthor(s). AdvancedSciencepublishedbyWiley-VCHGmbH
+ 21983844, 2025, 20, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202410640 by Huazhong Agricultural University, Wiley Online Library on [17/10/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
