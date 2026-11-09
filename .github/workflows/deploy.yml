@@ -50,7 +50,7 @@ jobs:
         run: |
           test -n "$ECS_HOST"
           test -n "$ECS_USER"
-          rsync -az --delete dist/ "$ECS_USER@$ECS_HOST:/var/www/wyjlove/"
+          tar -czf - -C dist . | ssh "$ECS_USER@$ECS_HOST" 'mkdir -p /var/www/wyjlove && find /var/www/wyjlove -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + && tar -xzf - -C /var/www/wyjlove'
 
       - name: Reload Nginx
         env:
