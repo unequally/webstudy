@@ -70,6 +70,46 @@ export const dailyWork = [
 
 export const codexDailyHistory = [
   {
+    date: '2026-11-09',
+    focus: 'RATM v8 CQR / 真实 Oracle',
+    title: '完成 v8 独立 Oracle 与 CQR 盲测，确认 coverage 失败',
+    chats: ['授权启动 v8 CQR Oracle', '你到底能不能找到一个好的解决方法，这次为什么还下降了，有没有可能是其中的一步出错了，或者哪一步没弄好'],
+    work: '修复 v8 runner 的 checkpoint 命名空间和 manifest 字段问题，恢复真实 docking；完成 3120 个 target-molecule docking、1560 个 fresh ADMET，并按同 target reserve replacement 修复 3 条不完整 transition。只用 train/location 拟合 CQR，radius 只做 development sensitivity，final-heldout 只做一次盲测。',
+    output: '3110/3120 docking 成功、10 条真实失败；replacement 后 panel 为 720/720 完整。v8 CQR 最低 exact lower bound=0.5602，train-mean baseline=0.7650；CQR 平均区间宽度 0.7444，小于 baseline 0.7953，但 coverage 低于预注册 0.90，不能称为有效或 formal qualification。主要失败来自 DRD2/admet.clintox（142/220 覆盖）。',
+    summary: '当天完成了一次独立真实验证，结果明确否决了“CQR 同时提高可靠性和效率”的主张。失败不是 final 代码错误，而是在 development split 已出现的小样本与 scaffold shift 问题。',
+    state: '完成执行 / 科学 HOLD',
+  },
+  {
+    date: '2026-11-09',
+    focus: 'RATM v9 / 开发方法筛选',
+    title: '逐项筛选 shift-aware、abstain 和安全系数方案',
+    chats: ['开始下一步，你做的每一步都要看看到底能不能提升，对这有没有效，不要盲目的搞', '开始下一步', '也就是说我现在的可靠不确定性加上去后还没有基线好'],
+    work: '在不启动新 Oracle 的前提下，用 v8 development splits 做 3-fold nested CV，比较 train-mean、CQR、target-shift-aware conformal、covariate weighting、结构支持域 abstain 和预注册半径安全系数。每一步都同时检查最低 lower bound、区间宽度和保留率。',
+    output: 'CQR lower bound=0.5685；shift-aware 与 train-mean development lower bound=0.8585；covariate weighting 没有改善；support abstain 阈值 0.20 的 lower bound 约 0.803、保留率 0.70，更高阈值只会丢数据；半径 1.5x 才达到 0.9189，但宽度变成 baseline 的 1.47x。没有候选同时满足 lower bound≥0.90 且宽度≤baseline 1.10x。',
+    summary: '这一天有效排除了多条看似合理但没有证据支持的修复路径，确认当前瓶颈是 calibration support 不足和 scaffold shift，继续调参数没有依据。',
+    state: '完成筛选 / 保持 HOLD',
+  },
+  {
+    date: '2026-11-09',
+    focus: 'RATM v9 / ID qualification protocol',
+    title: '把验证问题拆成 ID qualification 与 OOD stress test',
+    chats: ['所以还要怎么办', '开始下一步'],
+    work: '基于 v8 的负结果重新定义验证问题：保留 v8 作为 scaffold-disjoint OOD stress test，不再用它宣称标准 conformal coverage；新建 v9 in-domain qualification protocol，使 calibration 与 final-heldout 来自相同支持分布，同时禁止 exact parent、child、donor 跨 split 重复。',
+    output: '完成 v9 protocol、preflight 脚本和结构 panel builder 的初始实现；v9 目标为每个 target 700 条 transition、共 1400 条，当前结构枚举仍在运行，尚未启动 docking/ADMET。',
+    summary: '项目从“继续换算法”转向“先让验证问题和统计假设匹配”，下一步必须先完成 v9 panel 的 quota、去重和 hash 审计。',
+    state: '进行中 / 尚未授权 Oracle',
+  },
+  {
+    date: '2026-11-09',
+    focus: '网站工程 / 自动部署',
+    title: '完成研究工作台 UI 优化并接通 GitHub 自动部署',
+    chats: ['现在域名和服务器已经链接了，你优化一下UI界面', '你不能直接自动更新吗，只要我的网页文件变动久直接自动更新GITHUB的内容和网站'],
+    work: '完成 Vue 工作台的导航、首页层级、论文搜索筛选、时间线状态、天气定位/刷新/兜底、CSS 桌宠帧动画和响应式样式优化；创建 GitHub Actions 自动构建上传 ECS 的工作流，并把 rsync 上传改为 tar+SSH；新增本地文件监控脚本，保存后自动 commit/push。',
+    output: 'npm run build 通过；核心路由均返回 200；GitHub Actions 的 Build and deploy #3/#4 已绿色通过。自动同步脚本会忽略 .git、node_modules、dist，等待 5 秒合并修改后推送到 GitHub，由 Actions 自动部署到 ECS。',
+    summary: '网站已经从手动上传转为“保存文件→自动推送→GitHub 构建→ECS 部署”的工作流，但自动同步依赖电脑开机且监控脚本持续运行。',
+    state: '完成 / 自动部署运行中',
+  },
+  {
     date: '2026-11-08',
     focus: 'MolMem 复现 / PPO + Skill Memory',
     title: '修复 LoRA 合并并跑通 QED PPO 评估链',
@@ -366,7 +406,7 @@ export const projectProgress = {
     threadId: '01a0c180-08c0-72c1-897e-838d786f69cc',
     title: 'AI-agent-drug-design 项目工作日志与当前状态',
     path: 'E:/learn_program/AI-agent-drug-design-main-next',
-    updated: '2026-11-08',
+    updated: '2026-11-09',
   },
   summary: '项目已经从单纯的代码实现进入正式实验、统计门禁和科学资格审查阶段。当前工作重点不是继续堆功能，而是确认 calibration/OOD、跨任务比较和化学质量证据是否足以支撑正式结论。',
   completed: [
@@ -384,7 +424,8 @@ export const projectProgress = {
     { label: 'RATM v7 Oracle', value: '3120 docking、1560 fresh ADMET 和 440 条 final-heldout 盲测已完成；最低下界 0.9254，formal qualification=false', status: '科学 HOLD' },
     { label: 'RATM v6/v7 机制审计', value: 'dynamic quota、memory admission、support gate', status: '已完成一轮' },
     { label: 'Development stress benchmark', value: 'risk-adjusted selector 与 mandatory safety harmful rate 0.0833', status: '已验证 / 待独立复核' },
-    { label: 'RATM v8 / CQR', value: '开发集区间宽度改善；独立 JNK3 结构 quota 仍未满足，未启动 Oracle', status: '结构池 HOLD' },
+    { label: 'RATM v8 / CQR', value: '完成 3120 docking、1560 fresh ADMET；CQR lower bound 0.5602，coverage 失败', status: '科学 HOLD' },
+    { label: 'RATM v9 / ID qualification', value: '已建立同分布 qualification 协议，目标 1400 条结构仍在生成，尚未启动 Oracle', status: '进行中 / 待 preflight' },
     { label: 'MolMem PPO + Skill Memory', value: 'QED global_step_45、13 条有效经验、100 分子 practical 已完成；200 分子论文配置运行中', status: '进行中' },
   ],
   guardrails: [
@@ -452,6 +493,22 @@ export const projectProgress = {
     {
       id: 'P5B',
       name: 'RATM v8 CQR 独立验证',
+      status: '已完成 / 科学 HOLD',
+      detail: 'v8 独立 panel 已完成真实 docking、fresh ADMET 和 CQR blind qualification；CQR 区间更窄但 coverage 失败，不能写成可靠校准方法。',
+      done: ['修复 BRICS None 过滤 bug，v8 panel 达到两个 target 各 390/390', '完成 3120 docking（3110 成功、10 失败）和 1560 fresh ADMET', '同 target reserve replacement 后 720/720 完整', 'CQR lower bound=0.5602、baseline=0.7650，平均区间宽度 0.7444 vs 0.7953', '保留 DRD2/admet.clintox 142/220 覆盖的失败证据'],
+      pending: ['不把 CQR 写成 formal qualification 或 superiority', '保留 v8 作为 OOD/scaffold-shift stress test 负结果', '转入 v9 in-domain qualification 验证统计假设是否匹配'],
+    },
+    {
+      id: 'P5C',
+      name: 'RATM v9 in-domain qualification',
+      status: '进行中 / 尚未授权 Oracle',
+      detail: '将同分布 ID qualification 与 scaffold-disjoint OOD stress test 分开，先生成 1400 条新结构并完成 quota、去重和 hash preflight，再决定是否申请新的 docking/ADMET。',
+      done: ['完成 v9 protocol、preflight 脚本和结构 panel builder 初始实现', '冻结 exact parent/child/donor 跨 split 不重复规则', '明确 v8 负结果不再用于支持 conformal coverage 主张'],
+      pending: ['完成每个 target 700 条结构及 panel 审计', '在 preflight 通过且获得授权后再启动 Oracle', '先做 development-only nested validation，再报告 formal qualification'],
+    },
+    {
+      id: 'P5B',
+      name: 'RATM v8 CQR 独立验证',
       status: '进行中 / HOLD',
       detail: '用 CQR + development-only residual calibration 应对异方差区间问题，并在排除历史 donor 的新 panel 上独立验证；当前 JNK3 结构池仍未达到 390 条 quota。',
       done: ['开发集平均区间宽度 0.8644 → 0.8160', '冻结参数后的 exploratory final read 最低下界 0.8720 → 0.9009，但未作为 formal qualification', '从官方 ChEMBL37 source 建立 2416 个新 fragment，排除 558 个 v5/v6/v7 donor', '定位 max_parent_brics_bonds=5 导致 source groups 仅 158 个，并预注册放宽到 8'],
@@ -477,6 +534,33 @@ export const projectProgress = {
 }
 
 export const workHistory = [
+  {
+    date: '2026-11-09',
+    area: 'RATM v8 CQR / Oracle',
+    title: '完成 v8 独立 Oracle 与 CQR blind qualification',
+    work: '修复 v8 runner 的 checkpoint 命名空间和 manifest 字段，完成 3120 个 docking、1560 个 fresh ADMET，并对 3 条不完整 transition 做同 target reserve replacement；final-heldout 只做一次盲测。',
+    output: '3110/3120 docking 成功、10 条真实失败；replacement 后 720/720 完整。CQR 最低 exact lower bound=0.5602，train-mean=0.7650；区间宽度 0.7444 vs 0.7953。coverage 未达 0.90，正式 qualification=false，主要失败为 DRD2/admet.clintox。',
+    summary: 'v8 证明 CQR 只改善区间宽度，没有改善当前独立 panel 的可靠 coverage；该结果作为 OOD/scaffold-shift stress test 负证据保留。',
+    state: '完成执行 / 科学 HOLD',
+  },
+  {
+    date: '2026-11-09',
+    area: 'RATM v9 development screening',
+    title: '完成无新 Oracle 的方法筛选并冻结下一步验证问题',
+    work: '在 v8 development splits 上做 3-fold nested CV，逐项比较 CQR、train-mean、target-shift-aware conformal、covariate weighting、support abstain 和 radius safety factor；同步检查 lower bound、区间宽度和保留率。',
+    output: '没有候选同时达到 lower bound≥0.90 且宽度≤baseline 1.10x；support abstain 阈值 0.20 只有约 0.803 lower bound、0.70 保留率；1.5x 半径虽达到 0.9189，但宽度为 baseline 1.47x。随后完成 v9 ID qualification protocol 初始实现，目标每个 target 700 条结构，尚未启动 Oracle。',
+    summary: '开发筛选有效排除了多条无效修复路径，确认需要增加匹配分布的 calibration support，而不是继续调参或盲目消耗 Oracle。',
+    state: '筛选完成 / v9 进行中',
+  },
+  {
+    date: '2026-11-09',
+    area: '网站工程 / 自动部署',
+    title: '完成 UI 优化与 GitHub → ECS 自动更新链路',
+    work: '完成 Vue 研究工作台的导航、首页信息层级、论文搜索、天气定位与桌宠帧动画优化；配置 GitHub Actions 构建上传 ECS，并新增本地文件监控脚本，在保存后自动 commit/push。',
+    output: 'npm run build 通过，核心路由返回 200；GitHub Actions Build and deploy #3/#4 成功。部署上传改为 tar+SSH，不依赖 ECS rsync；本地 watcher 已启动并忽略 .git、node_modules、dist。',
+    summary: '网站现在具备从本地保存到 GitHub、再到 ECS 自动部署的完整链路，自动更新前提是电脑开机且 watcher 运行。',
+    state: '完成 / 自动部署运行中',
+  },
   {
     date: '2026-11-08',
     area: 'MolMem PPO / Skill Memory',
