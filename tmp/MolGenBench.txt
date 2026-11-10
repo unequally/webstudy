@@ -1,4 +1,7 @@
-\n\n===== PAGE 1 =====\nArticle https://doi.org/10.1038/s41467-026-78105-8
+
+
+===== PAGE 1 =====
+Article https://doi.org/10.1038/s41467-026-78105-8
 Evaluating generative models for structure-
 based drug discovery from de novo design to
 lead optimization
@@ -54,7 +57,10 @@ Shanghai, China.6School of Physical Science and Technology, ShanghaiTech Univers
 Zhehuan Fan, Jie Yu. e-mail: caodh@tongji.edu.cn; myzheng@simm.ac.cn
 Nature Communications|        (2026) 17:11281 1
 1234567890():,;
-1234567890():,;\n\n===== PAGE 2 =====\nDeep generative models can design target-speciﬁc molecules by
+1234567890():,;
+
+===== PAGE 2 =====
+Deep generative models can design target-speciﬁc molecules by
 leveraging either protein sequences or structural information 7,8.I n
 recent years, the ﬁeld has increasingly prioritized structure-based
 approaches. For instance, liGAN8 encodes binding pocket structures
@@ -185,7 +191,10 @@ fragment-guided molecular modiﬁcation, a core step in advan-
 cing early-stage hits to drug-like leads, remains largely unad-
 dressed due to the lack of standardized assessment protocols.
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 2\n\n===== PAGE 3 =====\n(iv) Evaluation metrics: Existing metrics fail to robustly evaluate two
+Nature Communications|        (2026) 17:11281 2
+
+===== PAGE 3 =====
+(iv) Evaluation metrics: Existing metrics fail to robustly evaluate two
 critical capabilities:ﬁrst, a method’s capacity to leverage target-
 speciﬁc information (a prerequisite for generating target-
 speciﬁc molecules); second, the ef ﬁciency and ef ﬁcacy of a
@@ -313,7 +322,10 @@ generated molecules and reference active compounds across multiple
 structural hierarchies, including atom types, ring types, and functional
 groups, using Jensen– Shannon Distance(JSD); scores were calculated
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 3\n\n===== PAGE 4 =====\n•V a l i d i t y
+Nature Communications|        (2026) 17:11281 3
+
+===== PAGE 4 =====
+•V a l i d i t y
 •Q E D
 • Uniqueness
 • Diversity
@@ -420,7 +432,10 @@ evaluated in existing benchmarks.c Multi-dimensional evaluation metrics: Metrics
 address key drug discovery requirements, including basic molecular properties,
 target-aware capability, and conformational quality.
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 4\n\n===== PAGE 5 =====\nDomain
+Nature Communications|        (2026) 17:11281 4
+
+===== PAGE 5 =====
+Domain
 KnowledgeTraining DatasetArchitectureModels 
 -CrossDock2020AutoregressivePocket2Mol
 -CrossDock2020DiffusionTargetDiff
@@ -536,7 +551,10 @@ avoiding unstable/reactive molecules, and Bemis-Murcko scaffold diversity among
 ﬁlter-passing generated molecules. Bars represent the mean ± SD across three
 independent repeats (n = 3). Source data are provided as a Source Data ﬁle.
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 5\n\n===== PAGE 6 =====\nas 1 – JSD, where 1 indicates perfect alignment with reference dis-
+Nature Communications|        (2026) 17:11281 5
+
+===== PAGE 6 =====
+as 1 – JSD, where 1 indicates perfect alignment with reference dis-
 tributions. Detailed descriptions of all metrics are provided in the
 Methods section.
 Among the de novo generation methods, a subset exhibited
@@ -666,7 +684,10 @@ with PB-Valid scores falling below half or even one-third of their
 validity values, exempliﬁed by Pocket2Mol (0.878 vs. 0.388), SurfGen
 (0.370 vs. 0.103), and FLAG (0.136 vs. 0.001).
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 6\n\n===== PAGE 7 =====\nFor H2L models (Fig.3a), DiffSBDD-M achieved the highest overall
+Nature Communications|        (2026) 17:11281 6
+
+===== PAGE 7 =====
+For H2L models (Fig.3a), DiffSBDD-M achieved the highest overall
 pass rate (0.598), followed by Delete (0.563), DiffSBDD-C (0.558), and
 DiffDec (0.466). These models outperformed all de novo models
 except MolCraft, while the ligand-based method ShEPhERD (0.292)
@@ -803,7 +824,10 @@ Proteins Not in CrossDock
 0.25
 h
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 7\n\n===== PAGE 8 =====\nvarious tools, AutoDock Vina (Vina) has become the de facto standard
+Nature Communications|        (2026) 17:11281 7
+
+===== PAGE 8 =====
+various tools, AutoDock Vina (Vina) has become the de facto standard
 for constructing such datasets, including the widely adopted Cross-
 Dock set, due to its ef ﬁciency and accessibility. We therefore treat
 Vina-generated poses as docking-derived workﬂow references rather
@@ -930,7 +954,10 @@ mean ± SD of three independent repeats (n = 3). Raw and Vina denote results cal
 culated from the raw generated conformations and Vina-redocked conformations,
 respectively. Source data are provided as a Source Data ﬁle.
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 8\n\n===== PAGE 9 =====\nThese ﬁndings further indicate that when using r.m.s.d. to evalu-
+Nature Communications|        (2026) 17:11281 8
+
+===== PAGE 9 =====
+These ﬁndings further indicate that when using r.m.s.d. to evalu-
 ate a model ’s ability to generate plausible conformations, caution is
 warranted against models potentially taking shortcuts by producing
 overly rigid molecular structures. Incorporating ﬂexibility analysis
@@ -962,7 +989,10 @@ total number of sampled molecules (not just chemically valid molecules) as the
 denominator. Values represent the mean across three independent repeats (n =3 ) .
 Source data are provided as a Source Data ﬁle.
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 9\n\n===== PAGE 10 =====\nMolCraft performed best: 54.1%, 31.9%, and 12.7% of its molecules
+Nature Communications|        (2026) 17:11281 9
+
+===== PAGE 10 =====
+MolCraft performed best: 54.1%, 31.9%, and 12.7% of its molecules
 exceeded the 25th, 50th, and 75th quantiles, respectively. These values
 were the highest in the de novo category but were substantially lower
 than the corresponding proportions for reference actives, highlighting
@@ -1092,7 +1122,10 @@ sponding to proteins in CrossDock. Within the diffusion-based fra-
 meworks, DiffDec exhibited superior results, retrieving active
 molecules in 34.3 series and scaffolds in 167.0 series associated with
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 10\n\n===== PAGE 11 =====\n20
+Nature Communications|        (2026) 17:11281 10
+
+===== PAGE 11 =====
+20
 30
 40
 50
@@ -1221,7 +1254,10 @@ series to reference actives; shared modiﬁcation sites across reference actives
 weighted by their occurrence frequency, and molecule generation is guided by
 these sites. Source data are provided as a Source Data ﬁle.
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 11\n\n===== PAGE 12 =====\nknown targets. DiffSBDD, which employs a molecular inpainting
+Nature Communications|        (2026) 17:11281 11
+
+===== PAGE 12 =====
+known targets. DiffSBDD, which employs a molecular inpainting
 strategy, demonstrated considerable optimization capability, high-
 lighting both the advantage of inpainting-based approaches and the
 broader potential of integrating such techniques with de novo design
@@ -1350,7 +1386,10 @@ While the preceding section assessed de novo molecular generative
 models’ability to recover active molecules and scaffolds, a critical gap
 remains: activity recovery alone does not guarantee target selectivity,
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 12\n\n===== PAGE 13 =====\nDiffSBDD-M
+Nature Communications|        (2026) 17:11281 12
+
+===== PAGE 13 =====
+DiffSBDD-M
 PocketFlow
 DecompDiff
 MolCraft
@@ -1511,7 +1550,10 @@ substructure of the compound series to reference actives; shared modiﬁcation s
 across reference actives are weighted by their occurrence frequency, and molecule
 generation is guided by these sites. Source data are provided as a Source Dataﬁle.
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 13\n\n===== PAGE 14 =====\nwhich is a key requirement for safe, clinically viable drugs. Ideally,
+Nature Communications|        (2026) 17:11281 13
+
+===== PAGE 14 =====
+which is a key requirement for safe, clinically viable drugs. Ideally,
 SBMG should leverage unique features of a target protein ’sb i n d i n g
 pocket (e.g., size, residue composition, electrostatic potential) to
 produce molecules with target-speciﬁc binding, rather than generic
@@ -1641,7 +1683,10 @@ up to 100,000 molecules per target/series to assess whether increased
 sampling enhances the number of active scaffolds/molecules dis-
 covered and their hit rates (detailed procedures in Methods section).
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 14\n\n===== PAGE 15 =====\nA ss h o w ni nF i g .8a, all four de novo generative models produced
+Nature Communications|        (2026) 17:11281 14
+
+===== PAGE 15 =====
+A ss h o w ni nF i g .8a, all four de novo generative models produced
 a greater number of active scaffolds with increased sampling. How-
 ever, TamGen consistently underperformed relative to the other three
 m e t h o d sa c r o s sa l lt a r g e t s .T h ee fﬁciency of bioactive scaffold dis-
@@ -1862,7 +1907,10 @@ to reference actives; shared modiﬁcation sites across reference actives are we
 ted by their occurrence frequency, and molecule generation is guided by these
 sites. Source data are provided as a Source Data ﬁle.
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 15\n\n===== PAGE 16 =====\ngenerative models showed an increase in the number of active mole-
+Nature Communications|        (2026) 17:11281 15
+
+===== PAGE 16 =====
+generative models showed an increase in the number of active mole-
 cules with larger sample sizes. A comparison between Fig.8a, b reveals
 orders-of-magnitude differences between the number of active scaf-
 folds and molecules identiﬁed at comparable sampling levels, under-
@@ -1992,7 +2040,10 @@ development. Furthermore, the integration of multi-source data, such
 as crystallographic structures, simulated complexes, and pharmaco-
 phore priors, proves essential for enhancing model robustness and
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 16\n\n===== PAGE 17 =====\nThe relationship between the number of active scaffolds identified and the size of the sampled molecule set (De Novo)
+Nature Communications|        (2026) 17:11281 16
+
+===== PAGE 17 =====
+The relationship between the number of active scaffolds identified and the size of the sampled molecule set (De Novo)
 The relationship between the number of active molecules identified and the size of the sampled molecule set (De Novo)
 The relationship between the number of active scaffolds identified and the size of the sampled molecule set (Hit to Lead)
 The relationship between the number of active molecules identified and the size of the sampled molecule set (Hit to Lead)
@@ -2102,7 +2153,10 @@ Number of Unique Active Scaffolds
 40000 8000020000 60000 1000000 40000 80000 20000 60000 1000000 40000 80000 20000 60000 1000000
 40000 8000020000 60000 1000000 40000 80000 20000 60000 1000000 40000 80000 20000 60000 1000000
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 17\n\n===== PAGE 18 =====\neffectiveness. These insights not only illuminate current model cap-
+Nature Communications|        (2026) 17:11281 17
+
+===== PAGE 18 =====
+effectiveness. These insights not only illuminate current model cap-
 abilities and limitations but also provide a clear pathway for future
 developments in generative models for drug discovery, emphasizing
 the need for task-aware design and generalized optimization
@@ -2225,7 +2279,10 @@ modiﬁcation sites across reference actives are weighted by their occurrence fr
 quency, and molecule generation is guided by these sites. Source data are provided
 as a Source Data ﬁle.
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 18\n\n===== PAGE 19 =====\nb
+Nature Communications|        (2026) 17:11281 18
+
+===== PAGE 19 =====
+b
 cd
 ef
 a
@@ -2310,7 +2367,10 @@ series to reference actives; shared modiﬁcation sites across reference actives
 weighted by their occurrence frequency, and molecule generation is guided by
 these sites. Source data are provided as a Source Data ﬁle.
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 19\n\n===== PAGE 20 =====\nseeds. We provide comprehensive descriptions of the codebases,
+Nature Communications|        (2026) 17:11281 19
+
+===== PAGE 20 =====
+seeds. We provide comprehensive descriptions of the codebases,
 weight ﬁles, input formats, and key parameters for all methods in the
 Supplementary Informationﬁle.
 To investigate the impact of increased sampling on the efﬁciency
@@ -2437,7 +2497,10 @@ interaction ﬁdelity.
 For each target, all reference active molecules were docked to the
 protein binding site, and interactionﬁngerprints were computed using
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 20\n\n===== PAGE 21 =====\nProLIF59. Each residue-interaction feature was de ﬁned as k = r, tðÞ ,
+Nature Communications|        (2026) 17:11281 20
+
+===== PAGE 21 =====
+ProLIF59. Each residue-interaction feature was de ﬁned as k = r, tðÞ ,
 where r denotes a protein residue andt denotes the type of interaction
 (e.g., hydrogen bond, π– stacking, salt bridge). Residue-interaction
 features were extracted from all docked reference actives, and the
@@ -2567,7 +2630,10 @@ j.cell.2025.07.033(2025).
 generation through a chemical language model.Nat. Commun.15,
 9360 https://doi.org/10.1038/s41467-024-53632-4(2024).
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 21\n\n===== PAGE 22 =====\n5. Jiang, Y. et al. Pocket ﬂow is a data-and-knowledge-driven structure-
+Nature Communications|        (2026) 17:11281 21
+
+===== PAGE 22 =====
+5. Jiang, Y. et al. Pocket ﬂow is a data-and-knowledge-driven structure-
 based molecular generative model.Nat. Mach. Intell. 6,
 326–337 (2024).
 6. Zhang, K. et al. Arti ﬁcial intelligence in drug development.Nat.
@@ -2696,7 +2762,10 @@ on Learning Representations(2025).
 Screening Deck Design.J. Med. Chem.63,1 4 4 2 5–14447 https://doi.
 org/10.1021/acs.jmedchem.0c01332(2020).
 Article https://doi.org/10.1038/s41467-026-78105-8
-Nature Communications|        (2026) 17:11281 22\n\n===== PAGE 23 =====\n44. Bruns, R. F. & Watson, I. A. Rules for identifying potentially reactive
+Nature Communications|        (2026) 17:11281 22
+
+===== PAGE 23 =====
+44. Bruns, R. F. & Watson, I. A. Rules for identifying potentially reactive
 or promiscuous compounds.J. Med. Chem. 55,9 7 6 3–9772 https://
 doi.org/10.1021/jm301008n(2012).
 45. Watson, J. L. et al. De novo design of protein structure and function
