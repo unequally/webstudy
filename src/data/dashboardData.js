@@ -35,6 +35,15 @@ export const papers = [
     status: '学习中',
     accent: 'purple',
   },
+  {
+    slug: 'molgenbench',
+    number: '05',
+    name: 'MolGenBench',
+    title: '从 de novo 设计到 hit-to-lead 优化',
+    description: '结构基础药物生成的多维 benchmark、靶点意识与活性空间覆盖。',
+    status: '学习中',
+    accent: 'amber',
+  },
 ]
 
 export const dailyWork = [

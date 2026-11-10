@@ -14,6 +14,7 @@ const paperSources = {
   pharmagent: { title: 'PharmAgent', src: '/legacy-papers/PharmAgent.html' },
   pmmg: { title: 'PMMG', src: '/legacy-papers/PMMG.html' },
   conformal: { title: 'Conformal Prediction', src: '/legacy-papers/ConformalPrediction.html' },
+  molgenbench: { title: 'MolGenBench', src: '/legacy-papers/MolGenBench.html' },
 }
 
 const paper = computed(() => {
