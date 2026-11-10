@@ -1,0 +1,2809 @@
+\n\n===== PAGE 1 =====\nArticle https://doi.org/10.1038/s41467-026-78105-8
+Evaluating generative models for structure-
+based drug discovery from de novo design to
+lead optimization
+Duanhua Cao1,7 , Zhehuan Fan2,3,7,J i eY u2,4,5,7,M i n g a nC h e n2,5,6,
+Xinyu Jiang 2,3,X i aS h e n g2,3, Xingyou Wang2,3, Chuanlong Zeng2,3,
+Xiaomin Luo 2,3,D a nT e n g2 & Mingyue Zheng 2,3
+Advances in protein structure prediction have created opportunities for
+structure-based drug design, yet translating structural knowledge into
+actionable small-molecule ligands remains difﬁcult. Existing benchmarks often
+use simpliﬁed datasets and computational surrogates that poorly capture the
+heterogeneity and constraints of real-world drug discovery. We introduce
+MolGenBench, a comprehensive benchmark for de novo molecular generation
+and hit-to-lead optimization built on a large, structurally diverse dataset.
+Evaluation of 17 leading methods reveals persistent limitations, including weak
+virtual-screening performance, limited coverage of target-speciﬁc bioactive
+space, frequent high-risk structural motifs, poor target awareness, and
+reduced generalization to unseen proteins. Although some models improve
+three-dimensional conformation generation, they still struggle to produce
+active molecules reliably. MolGenBenchprovides standardized data, metrics,
+and analyses that connect structural prediction with practical molecular
+design and guide the development of more effective structure-based gen-
+erative models.
+The discovery of safe and effective therapeutics from chemical
+space to address the medical needs of billions worldwide and
+improve human quality of life remains a challenge. Throughout
+recorded history, humanity has explored only a minuscule fraction
+of this vast chemical space, yet such exploration has yielded a
+wealth of molecules that underpin modern medical practice 1. These
+successes achieved within limited exploration boundaries have
+inspired researchers to develop methods capable of ef ﬁciently
+identifying drug candidates across broader chemical landscapes,
+thereby addressing the escalating global burden of disease 2. The
+convergence of arti ﬁcial intelligence (AI) and life sciences is now
+driving transformative advances in this ﬁeld. Recent years have
+witnessed signi ﬁcant progress in deep generative models for drug
+discovery3– 5. Such approaches leverage target protein structural and
+functional information to propose drug-like molecules, offering a
+paradigm shift toward exhaustive exploration of unbounded che-
+mical space while circumventing the constraints of conventional
+library-dependent screening 6. There is a lack of understanding
+regarding the extent to which generative models can translate
+structural knowledge into drugs, which may lead to overestimating
+the molecular outputs of these models, thereby increasing the
+burden of drug development.
+Received: 21 February 2026
+Accepted: 10 September 2026
+Check for updates
+1State Key Laboratory of Cardiovascular Diseases and Medical Innovation Center, Medical Artiﬁcial Intelligence Innovation Center, Shanghai East Hospital,
+Frontier Science Center for Stem Cell Research, School of Life Sciences and Technology, Tongji University, Shanghai, China.2Drug Discovery and Design
+Center, State Key Laboratory of Drug Research, Shanghai Institute of Materia Medica, Chinese Academy of Sciences, Shanghai, China.3University of Chinese
+Academy of Sciences, Beijing, China.4School of Information Science and Technology, ShanghaiTech University, Shanghai, China.5Lingang Laboratory,
+Shanghai, China.6School of Physical Science and Technology, ShanghaiTech University, Shanghai, China.7These authors contributed equally: Duanhua Cao,
+Zhehuan Fan, Jie Yu. e-mail: caodh@tongji.edu.cn; myzheng@simm.ac.cn
+Nature Communications|        (2026) 17:11281 1
+1234567890():,;
+1234567890():,;\n\n===== PAGE 2 =====\nDeep generative models can design target-speciﬁc molecules by
+leveraging either protein sequences or structural information 7,8.I n
+recent years, the ﬁeld has increasingly prioritized structure-based
+approaches. For instance, liGAN8 encodes binding pocket structures
+into atomic density grid representations, employing a conditional
+variational autoencoder (CVAE) to extract spatial features, predict
+molecular density grids, and generate molecules via rule-based atom
+ﬁtting and bond inference algorithms. However, such methods suffer
+from inherent limitations in maintaining rotational and translational
+equivariance. To address this, subsequent models have adopted
+equivariant graph neural networks (E-GNNs) paired with auto-
+regressive atom-by-atom generation frameworks5,9– 13. Representative
+examples include SBDD9 and GraphBP10, which process structural data
+through E-GNNs to preserve geometric equivariance. Notably, these
+methods generate only atom types and coordinates, relying on
+external tools like RDKit14 for bond assignment. Recent advances fur-
+ther integrate end-to-end bond prediction. Pocket2Mol introduces a
+geometric vector perceptron (GVP)-based E-GNN to encode pocket
+context and directly predict edge types. This paradigm has inspired
+diverse innovations in pocket encoding and atomic sampling, includ-
+ing DeepICL11,S u r f G e n12, Delete13,a n dP o c k e t F l o w5.
+Diverging from autoregressive approaches, TargetDiff15,P M D M16,
+DecompDiff17, and DiffSBDD 18 employ diffusion models to generate
+complete molecular structures conditioned on protein pocket envir-
+onments. These methods demonstrate distinct generative advantages
+through their unique molecular representations and loss function
+designs. Notably, MolCraft 19 innovatively introduces Bayesian Flow
+Networks (BFN) to structure-based molecular generation (SBMG),
+signiﬁcantly improving the three-dimensional conformational quality
+of generated molecules. With advancements in large language model
+(LLM) technology, researchers have begun exploring their application
+in SBMG. For instance, Lingo3DMol 20 and 3DMolFormer21 utilize lan-
+guage models to jointly generate both atom types and spatial coor-
+dinates. Throughout this ﬁeld’s development, various models have
+incorporated different prior knowledge to enhance generative cap-
+abilities: DecompDiff and Lingo3DMol employ fragment-based
+decomposition representations; SurfGen and Delete integrate
+protein surface physicochemical features; DeepICL and PGMG
+incorporate interaction information and pharmacophore
+constraints, respectively. The integration of these prior knowledge
+elements has effectively improved model performance in speci ﬁc
+aspects.
+Alongside de novo design, H2L optimization constitutes another
+critical task of drug design that focuses on improving compound
+properties (e.g., binding afﬁnity and selectivity) through partial atomic
+modiﬁcations, typically by exploring R-group variations while main-
+taining core scaffolds. Compared to de novo molecule generation, this
+research area remains relatively underexplored. Autoregressive mod-
+els demonstrate inherent suitability for this fragment-based design
+paradigm. Among diffusion-based approaches, DiffSBDD has shown
+promising results using inpainting techniques for ﬁxed-fragment
+extensions18. Notably, specialized methods like DiffDec 22 have been
+developed speciﬁcally for this optimization scenario.
+While generative models have advanced rapidly, methodologies
+and benchmark datasets for evaluation remain critically under-
+developed. Earlier benchmarking efforts systematically compared
+model performance but focused solely on ligand-centric properties
+without protein context23,24. Current practices predominantly rely on
+the CrossDocked2020 25 dataset (hereafter referred to simply as
+CrossDock) which is an extended version of PDBBind 26 for model
+training and testing. However, this dataset ’s limitation of containing
+very few reference ligands per target fails to capture the complete
+distributional properties of active binding spaces, signi ﬁcantly com-
+promising the real-world relevance of evaluation results 27. Existing
+metrics often do not cover all relevant aspects of drug design projects.
+The AddCarbon model starkly illustrates this limitation by simply
+inserting random carbon atoms into training set molecules, it achieves
+near-perfect scores on standard metrics (uniqueness, diversity,
+novelty) while outperforming sophisticated generative models28.F u r -
+thermore, studies reveal strong correlations between some standard
+metrics (QED, Vina score) and atom counts, enabling even random
+ZINC29 database samples to outperform reference molecules in dock-
+ing scores30. Existing metrics for evaluating synthesizability are simi-
+larly ﬂawed. For instance, the Synthetic Accessibility score31 relies on
+the occurrence frequency of chemical substructures in curated data-
+bases to estimate synthetic feasibility, while the Synthetic Complexity
+score32 is trained on data from Reaxys 33, a comprehensive reaction
+database to quantify molecular complexity, with an implicit encoding
+of the number of synthetic steps required. Both metrics along with
+others like the length of Simpliﬁed Molecular-Input Line-Entry System
+(SMILES) demonstrate poor discrimination between synthetically fea-
+sible and infeasible compounds when validated through retrosynthetic
+analysis34, further highlighting the need for more pharmacologically
+grounded synthesizability assessments in molecular generation
+benchmarks.
+Taken together, theseﬁndings highlight the urgent need for more
+rigorous, real-world relevance of evaluation metrics. Recent approa-
+ches now incorporate multidimensional assessment metrics that
+extend beyond basic chemical properties to include conformational
+quality, interaction patterns, and pharmacophore similarity. For
+example, PGMG introduced pharmacophore similarity metrics, while
+DeepICL developed interactionﬁngerprint assessments both designed
+to evaluate binding modes. Additionally, PoseCheck35 established 3D-
+speciﬁc evaluations, including strain energy, clash scores, and con-
+formation similarity between generated and docked poses. However,
+these evaluations remain limited in scope, often tested on small target
+sets. For instance, PoseCheck benchmarked onlyﬁve models using 3D
+metrics. Recent efforts have established benchmarks for SBMG.
+Durian27 included fourteen target proteins with corresponding active
+compounds, enabling systematic comparison of six state-of-the-art
+models and POKMOL-3D36 assembled an even more comprehensive
+benchmark featuring thirty-two diverse targets with validated active
+compounds for evaluating nine generative approaches.
+A l t h o u g ht h e s ee f f o r t sh a v em a d es i g n iﬁcant progress, enabling
+developed models to be evaluated more comprehensively on larger
+test sets, the current benchmarks still suffer from several limitations
+that hinder their ability to accurately re ﬂect real-world applicability.
+These shortcomings can be categorized into four key areas:
+(i) Dataset construction: Overly stringent activity cutoffs in some
+datasets exclude experimentally validated active molecules,
+leading to systematic underestimation of models ’ capacity to
+rediscover known bioactive compounds. Furthermore, com-
+pared to well-established virtual screening benchmarks (e.g.,
+DUD-E37 and DEKOIS 2.038), the number and structural diversity
+of protein targets in existing molecular generation benchmarks
+remain inadequate to comprehensively assess a method’sb r o a d
+utility in real-world scenarios.
+(ii) Model selection: The scope of evaluated model architectures is
+narrow, for example, BFN-based models are not included.
+Additionally, there is insuf ﬁcient analysis of how variations in
+prior knowledge integration (e.g., pharmacophore constraints,
+protein surface features) and training data composition (e.g.,
+simulated vs. crystal-derived protein-ligand complexes) in ﬂu-
+ence model performance, limiting insights into design princi-
+ples for improved methods.
+(iii) Evaluation scenarios: Current benchmarks exclusively focus on
+de novo molecule generation, while H2L optimization, such as
+fragment-guided molecular modiﬁcation, a core step in advan-
+cing early-stage hits to drug-like leads, remains largely unad-
+dressed due to the lack of standardized assessment protocols.
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 2\n\n===== PAGE 3 =====\n(iv) Evaluation metrics: Existing metrics fail to robustly evaluate two
+critical capabilities:ﬁrst, a method’s capacity to leverage target-
+speciﬁc information (a prerequisite for generating target-
+speciﬁc molecules); second, the ef ﬁciency and ef ﬁcacy of a
+model in identifying active molecules or scaffolds, an assess-
+ment where virtual screening benchmarks have long set a higher
+standard.
+In this work, we establish MolGenBench, a uniﬁed benchmark for
+de novo molecular generation and hit-to-lead optimization based on
+experimentally validated active compounds, congeneric series, and
+target-aware metrics. By evaluating models spanning diverse archi-
+tectures, training datasets, and domain priors, we show that current
+methods remain limited in rediscovering active molecules, generating
+physically realistic conformations, exploiting protein structural infor-
+mation, and generalizing to unseen targets. MolGenBench provides a
+practical framework for assessing the strengths and limitations of
+structure-based molecular generation under conditions that more
+closely reﬂect real-world drug discovery.
+Results
+MolGenBench dataset construction and baseline model
+selection
+As shown in Fig. 1a, the data processing pipeline commenced with the
+acquisition of the ChEMBL 39 database (version 33). The data under-
+went preprocessing, in which any ligand that failed RDKit’sm o l e c u l a r
+preparation step (due to invalid SMILES representation) was dis-
+carded. Afﬁnity data labeled as NaN, 0, or containing symbols such as
+‘<’ or ‘>’ were also excluded. Concurrently, data points with binding
+afﬁnity values exceeding 10μM were excluded. This lenient threshold
+was intentionally set to maximize the retention of positive molecules
+and to ensure a diverse representation of experimentally con ﬁrmed
+actives across all protein targets. This approach mitigates the risk of
+underestimation in subsequent testing due to an insufﬁcient number
+of positive reference compounds. During the subsequent clustering
+phase, the data were partitioned by UniProt 40 ID to group all entries
+associated with the same protein target. Within each UniProt ID group,
+afﬁnity data were further organized into distinct Chemical Series based
+on “assay ID ” criteria. This grouping strategy ensured that all data
+within a given series were derived from identical assay conditions, with
+minimized systematic error in the binding af ﬁnity data to guarantee
+the accuracy of subsequent evaluations. Nevertheless, we note that
+such procedures cannot completely eliminate all possible biases or
+misannotations in automatically mined ChEMBL-derived data.
+For each UniProt ID, we quantiﬁed the number of unique SMILES
+strings, the count of distinct Bemis-Murcko scaffolds, and the number
+of chemical series. A subset with 120 UniProt IDs was then selected for
+the de novo molecular generation test set based on the following
+minimum thresholds: at least 50 active molecules, no fewer than 50
+unique Bemis-Murcko scaffolds, and a minimum of 20 distinct che-
+mical series. This stringent ﬁltering guarantees that each tested pro-
+tein system is supported by a substantial corpus of active compounds
+for reference, while also ensuring signiﬁcant structural and chemical
+diversity among these actives.
+To construct a dedicated benchmark dataset for H2L optimiza-
+tion, we implemented an additionalﬁltering and selection process for
+the compounds within each Series ID. Speci ﬁcally, for a series to be
+considered, it was required to contain a common substructure. We
+identiﬁed the Maximum Common Substructure (MCS) for each series.
+The identiﬁed MCS was then provided as a starting scaffold to H2L
+models for subsequent optimization. Concurrently, we collected all
+available structures for the relevant targets that contained a co-
+crystallized ligand from the Protein Data Bank (PDB) database41. From
+these, a single PDB entry was selected for each target in subsequent
+molecular docking operations.
+Finally, to build theﬁnal H2L optimization test set, we selected the
+top ﬁve series (ranked by the number of successfully docked ligands)
+within each UniProt ID. This resulted in a comprehensive dataset
+encompassing 120 unique protein targets and 600 distinct compound
+series, ensuring both structural and target diversity. Detailed protocols
+for the MCS analysis, ligand preparation, and docking procedures are
+provided in the Methods section. Additional analyses of data proces-
+sing, together with the detailed composition of our dataset, are sum-
+marized in Supplementary Figs. 1– 4.
+To systematically assess how methodological choices in ﬂuence
+structure-based molecular generation, MolGenBench includes repre-
+sentative de novo and hit-to-lead optimization models spanning
+diverse architectural paradigms, training data sources, and domain
+priors. For de novo generation, the evaluated models cover auto-
+regressive methods, diffusion-based models, and Bayesian Flow Net-
+works, thereby representing major design logics in current SBDD
+generative modeling. These models also differ in their use of molecular
+pretraining, protein– ligand complex data, fragment decomposition,
+protein surface information, and explicit chemical rules, allowing us to
+examine how architecture, data, and inductive bias jointly shape per-
+formance. Therefore, architecture-related trends are interpreted pri-
+marily from comparisons among models trained on CrossDock,
+whereas comparisons across the full model panel reﬂect the combined
+effects of architecture, training data, and incorporated inductive
+biases.
+We further extend the benchmark to hit-to-lead optimization, a
+key but less systematically evaluated stage in SBDD. Here, we de ﬁne
+H2L models as generative methods that start from a prede ﬁned che-
+mical structure, such as a full ligand, scaffold, or fragment, and opti-
+mize it under protein-pocket constraints. This deﬁnition uniﬁes ligand-
+based and fragment-based optimization settings while distinguishing
+them from de novo generation, which starts solely from the target
+pocket. The evaluated H2L models cover both fragment-based and
+ligand-based approaches, as well as autoregressive and diffusion-
+based generation frameworks.
+To assess the potential in ﬂuence of training-data exposure, we
+stratiﬁed test targets according to whether each protein appeared in
+CrossDock, yielding “Proteins in CrossDock ” and “Proteins Not in
+CrossDock”.T h i ss p l i ts p e c iﬁcally evaluates protein-level exposure
+during structure-conditioned training. We also distinguish such target-
+level exposure from ligand-only pretraining on large molecular data-
+sets, such as ChEMBL-derived molecules, which may provide general
+chemical-space or scaffold-level priors, including possible memoriza-
+tion of bioactive-like scaffolds, but does not use target identi ﬁers,
+protein structures, binding-pocket information, or target-ligand
+activity annotations. Detailed characteristics of all evaluated models,
+including architecture, training data, conditioning information, and
+incorporated prior knowledge, are summarized in Fig. 2a, b and Sup-
+plementary Information.
+Assessment of basic generative capabilities of molecular gen-
+erative models: from standard metrics to chemical safety and
+scaffold diversity
+While the direct evaluation of generated molecules using common
+standard metrics does not directly re ﬂect a method ’s ability to pro-
+duce bioactive compounds for a given target, it serves as an essential
+assessment of the structural and chemical plausibility of the outputs,
+which is a foundational prerequisite for any practical drug discovery
+application. As summarized in Fig.2c, we compared all methods across
+ﬁve core standard performance metrics: validity, QED, SA score,
+uniqueness and diversity. Additionally, following the approach of Lin
+et al. 42,w eq u a n t iﬁed the distributional discrepancies between the
+generated molecules and reference active compounds across multiple
+structural hierarchies, including atom types, ring types, and functional
+groups, using Jensen– Shannon Distance(JSD); scores were calculated
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 3\n\n===== PAGE 4 =====\n•V a l i d i t y
+•Q E D
+• Uniqueness
+• Diversity
+• SA Score
+• Motif Distribution
+Molecular 
+generation 
+capability
+Target 
+aware
+capability
+• Interaction Score
+• Re-Docking r.m.s.d.
+• Strain Energy
+•C l a s h S c o r e
+•P B - V a l i d
+Conformational
+generation 
+capability
+• Molecule Recovery
+• Scaffold Recovery
+• Hit Rate
+• Hit Fraction
+• Target Aware-Score
+•M N A S c o r e
+SMILES
+UniProt ID:O43570
+NS(=O)(=O)c1ccc(C(=O)CSc2ncccn2)cc1
+NS(=O)(=O)c1cc(C(=O)O)c(Br)cc1Br
+COCCNC(=O)c1cc(S(N)(=O)=O)c(Cl)cc1Cl
+…
+Protein Pocket Generated Molecule
+De novo Design
+Hit to Lead
+•V a l i d i t y
+•Q E D
+• Uniqueness
+• Diversity
+• SA Score
+• Motif Distribution
+Molecular 
+generation 
+capability
+Target 
+aware
+capability
+• Interaction Score
+• Re-Docking r.m.s.d.
+• Strain Energy
+•C l a s h S c o r e
+•P B - V a l i d
+Conformational
+generation 
+capability
+• Hit Rediscovery
+• Hit Rate
+• Hit Fraction
+• Target-Aware Score
+•M N A S c o r e
+• Number of active molecules ≥ 50
+• Number of Bemis-Murcko scaffolds ≥ 50
+• Number of chemical series ≥ 20
+Filter rules
+Group target proteins
+by UniProt ID
+SMILES UniProt ID:
+O43570
+NS(=O)(=O)c1ccc(C(=O)CSc2ncccn2)cc1
+NS(=O)(=O)c1cc(C(=O)O)c(Br)cc1Br
+COCCNC(=O)c1cc(S(N)(=O)=O)c(Cl)cc1Cl
+…
+a
+b
+c
+Cluster compounds into chemical series
+and extract the common substructure
+Generative model
+Generative model
+Maximum
+Common 
+Substructure
+…
+Extracting the Maximum
+common substructure from
+a series of compounds
+Active molecules with
+IC50/Ki/Kd ≤10 μM
+Generated Molecule
+Fragment-based
+Initial Structure 
+Reference Molecule
+Ligand-based
+Reference Features
+Protein Pocket
+ChEMBL
+UniProt
+Fig. 1 | Core components of the MolGenBench benchmarking framework.
+a Dataset collection and processing workﬂow. b Dual evaluation scenarios aligned
+with drug discovery workﬂows: (i) De novo molecular design: Models generate
+molecules solely from the target protein information; (ii) Hit-to-lead (H2L) opti-
+mization: Models generate molecules based on initial fragments (fragment-based)
+or reference actives features (ligand-based), mimicking the critical H2L stage rarely
+evaluated in existing benchmarks.c Multi-dimensional evaluation metrics: Metrics
+address key drug discovery requirements, including basic molecular properties,
+target-aware capability, and conformational quality.
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 4\n\n===== PAGE 5 =====\nDomain
+KnowledgeTraining DatasetArchitectureModels 
+-CrossDock2020AutoregressivePocket2Mol
+-CrossDock2020DiffusionTargetDiff
+FragmentCrossDock2020AutoregressiveFLAG
+FragmentCrossDock2020DiffusionDecompDiff
+Surface CrossDock2020AutoregressiveSurfGen
+ChemicalZINC
+CrossDock2020AutoregressivePocketFlow
+-CrossDock2020Bayesian Flow 
+NetworksMolCraft
+-PubChem  
+CrossDock2020AutoregressiveTamGen
+-BindingMOADDiffusionDiffSBDD-M
+-CrossDock2020DiffusionDiffSBDD-C
+Domain 
+KnowledgeTraining DatasetArchitectureModels 
+-CrossDock2020DiffusionDiffDec
+Surface CrossDock2020AutoregressiveDelete
+-BindingMOADDiffusion
+inpaintingDiffSBDD-M
+-CrossDock2020Diffusion
+inpaintingDiffSBDD-C
+Ligand based
+Surface MOSESDiffusionShapeMol
+Surface
+Pharmacophore
+Electrostatics
+MOSESDiffusionShEPhERD
+PharmacophoreChEMBLAutoregressivePGMG
+1.000 0.7150.996 0.964 0.878 0.781 985.0876.00 73.0 0.136 0.960 0.939 0.768 0.761 0.728 0.678 0.521
+0.481 0.4720.573 0.501 0.437 0.505 765.0606.0794.0855.0875.0374.0906.0695.0385.0933.00 83.0
+0.784 0.6150.764 0.646 0.660 0.606 9 94.0346.0636.0335.07 06.0 0.807 0.721 0.700 0.715 0.741 0.630
+0.578 0.6080.610 0.627 0.611 0.629 046.0576.0217.0207.0496.0536.0395.0725.0206.0965.01 15.0
+0.836 0.9010.880 0.904 0.886 0.909 998.0509.0498.0419.0219.0988.0678.0088.0209.0698.00 78.0
+0.775 0.7340.883 0.861 0.847 0.741 3 87.09 28.00.727 0.864 0.901 0.873 0.909 0.918 0.908 0.907 0.911
+0.919 0.9970.272 0.998 1.000 0.999 0 00.1000.1999.0699.0000.10 00.1 0.656 0.751 1.000 0.788 0.988
+0.876 0.8980.844 0.879 0.833 0.899 0 97.0788.0009.0598.0788.03 18.0 0.621 0.698 0.567 0.565 0.856
+ShEPhERDDiffDecDeleteDiffSBDD
+-C
+DiffSBDD
+-M
+ShapeMolPGMGFLAGSur
+fGen
+DecompDiffTargetDiff DiffSBDD
+-M
+Dif
+fSBDD
+-C
+Pocket2MolMolCraftTamGenPocketFlow
+Validity
+QED
+Ring Type
+Uniqueness
+Diversity
+SA
+Atom Type
+Score
+0.4
+0.6
+0.8
+1.0
+0.2
+0.0
+Functional Group
+De Novo Hit to Lead
+ab
+All Proteins
+c
+d
+DiffSBDD
+-M
+FLAGSurfGen
+DecompDif
+f
+TargetDiffDiffSBDD
+-C
+Pocket2Mol
+MolCraft TamGen
+PocketFlow
+De Novo Hit to Lead
+Pass Rate
+0.0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+ShEPhERD
+DiffDecDelete
+ShapeMol
+PGMG
+DiffSBDD
+-M
+Diff
+SBDD
+-C
+Pass All Chem Filters
+Pass All Chem Filters & Unique Scaffolds
+Pass All Chem Filters (Reference)
+Pass All Chem Filters & Unique Scaffolds (Reference)
+Fig. 2 | Overview of evaluated molecular generative models and assessment of
+core performance metrics. aSummary of de novo molecular design methods and
+their key characteristics.b Summary of H2L optimization methods and their key
+characteristics.c Evaluation results of basic molecular properties, including valid-
+ity, QED, SA score, uniqueness, diversity, and motif distributions (atom types, ring
+types, functional groups) with reference actives. Values represent the mean across
+three independent repeats (n = 3); all metrics are normalized to a 0-1 scale, where
+higher values indicate better performance.d Evaluation results of chemical safety,
+assessed by ﬁlter pass rates reﬂecting compliance with industry-standard rules for
+avoiding unstable/reactive molecules, and Bemis-Murcko scaffold diversity among
+ﬁlter-passing generated molecules. Bars represent the mean ± SD across three
+independent repeats (n = 3). Source data are provided as a Source Data ﬁle.
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 5\n\n===== PAGE 6 =====\nas 1 – JSD, where 1 indicates perfect alignment with reference dis-
+tributions. Detailed descriptions of all metrics are provided in the
+Methods section.
+Among the de novo generation methods, a subset exhibited
+notably poor performance on validity. For instance, FLAG and SurfGen
+demonstrated substantially lower validity scores (<0.4), indicating a
+failure to consistently produce chemically viable molecules and sug-
+gesting insufﬁcient learning of fundamental molecular grammatical
+rules. In contrast, top-performing approaches such as PocketFlow and
+TamGen achieved validity scores approaching or equal to 1, under-
+scoring the value of molecular pre-training in capturing essential
+syntactic constraints1. MolCraft, a BFN-based model, also delivered
+competitive validity (~0.96), highlighting the utility of advanced
+architectural designs for ensuring chemical plausibility.
+Subsequent analyses were restricted to valid molecules for further
+benchmarking. Within this subset, TamGen displayed markedly lower
+uniqueness (~27% unique molecules), far below the >90% observed for
+other methods, indicating limited exploration of chemical space, likely
+due to over-reliance on pre-trained patterns of active molecules.
+Beyond uniqueness, all de novo models performed comparably on
+QED (~0.4– 0.6), SA (~0.5– 0.8), and diversity (~0.8– 0.9), demonstrating
+their ability to generate drug-like, structurally varied molecules. When
+aligned to reference actives, generated molecules showed closest
+alignment for atom types (score ~0.8 – 0.9), followed by ring types
+(score ~0.7 – 0.9), and the largest divergence for functional groups
+(score ~0.5– 0.6), a hierarchy that suggests models struggle to replicate
+the precise functional group patterns that mediate target binding.
+For H2L approaches, the highest validity rates were consistently
+observed in models trained on large molecular datasets with less
+constraints: PGMG (ChEMBL-trained) and ShapeMol (MOSES-trained)
+achieved validity >75%, underscoring the critical role of extensive data
+in learning fundamental molecular grammar. A key distinction
+emerged between H2L subcategories: fragment-based methods
+(DiffSBDD, Delete, DiffDec) produced compounds with reduced
+structural diversity compared to de novo models and ligand-based
+H2L methods, due to the constraints imposed by the given initial
+fragment structure. In contrast, ligand-based H2L methods (ShEP-
+hERD, PGMG, ShapeMol) generated more diverse molecules, as they
+lack such explicit fragment constraints and instead leverage features of
+reference actives to guide generation. Importantly, the “atom type >
+ring type > functional group” alignment hierarchy observed in de novo
+models was conserved in H2L approaches.
+We further stratiﬁed performance by “Proteins in CrossDock” vs.
+“Proteins Not in CrossDock ” (Supplementary Fig. 5). The observed
+trends are consistent with the statistical results obtained across the full
+set of targets, conﬁrming results are not driven by target overlap with
+training data. To dissect the impact of model architecture on basic
+generative capabilities, we focused on models trained exclusively on
+the CrossDock dataset. In the de novo setting, MolCraft showed the
+best overall performance. These results clearly indicate the advantage
+of the BFN-based model in learning fundamental molecular property
+distributions. In the H2L setting, Delete achieved the best overall
+performance, highlighting the unique advantage of autoregressive
+models in leveraging existing structural context for molecular
+optimization.
+Beyond basic plausibility, practical drug discovery requires
+avoiding unstable, reactive, or promiscuous“high-risk” molecules; we
+therefore applied a panel of industry-standard chemicalﬁlters (such as
+Eli Lilly ’s reactivity rules and Novartis Institute for BioMedical
+Research’s criteria and ChEMBL rules)43,44 to generated molecules and
+computed pass rates (Fig.2d ) .W en o t et h a ts u c h“high-risk” motifs are
+not necessarily without value, as they may still suggest productive
+optimization directions after medicinal chemistry re ﬁnement. Here,
+however, we use theseﬁlters to quantify how well current models align
+with constraints commonly applied in practical drug discovery. Nearly
+70% of reference active molecules passed allﬁlters, whereas among de
+novo and H2L models, only TamGen and PGMG achieved pass rates
+exceeding 50%. Most other methods fell below 40%, with some (e.g.,
+FLAG, SurfGen) below 5%. The relative advantage of TamGen and
+PGMG may be attributed to their training on large-scale datasets of
+known active molecules, which implicitly encode safety-related
+structural patterns. These results highlight that current generative
+models frequently produce high-risk compounds, which not only fail
+to advance drug discovery but also introduce unnecessary experi-
+mental risks, underscoring the need for rigorous post-generation ﬁl-
+tering. We additionally analyzed Bemis-Murcko scaffold diversity
+among ﬁlter-passing molecules (Fig.2d, Methods section). Among de
+novo models, TamGen exhibited high scaffold redundancy (>84%
+duplicate scaffolds), while two other autoregressive models (Pock-
+et2Mol, PocketFlow) also showed substantial redundancy (>30%
+duplicates). In contrast, diffusion-based (e.g., TargetDiff, DiffSBDD)
+and BFN-based (MolCraft) models produced more diverse scaffolds.
+Notably, MolCraft was the only de novo method where the proportion
+of unique valid scaffolds exceeded the reference set. For H2L models,
+fragment-based (fragment and pocket context constrained) methods
+yielded reduced scaffold diversity, while ligand-based methods (free of
+explicit fragment and pocket context constraints) achieved greater
+structural variety with PGMG being the only H2L method matching the
+reference set’s unique scaffold proportion. Stratiﬁed results for indi-
+vidual protein subsets are provided in Supplementary Fig. 6.
+Collectively, theseﬁndings reveal a critical limitation: generating
+bioactive molecules requires not just correct constituent groups
+(atoms, rings, functional groups) but their proper compositional and
+spatial arrangement. However, current evaluation metrics fall short in
+effectively capturing a model ’s capability in this regard. Therefore,
+addressing this gap by introducing bioactivity-focused criteria moti-
+vates the focus of the subsequent section.
+Conformational prediction limitations of current molecular
+generative models: a multi-dimensional evaluation
+In the preceding analyses, we conducted a comprehensive evaluation
+of both categories of methods, assessing fundamental molecular
+properties. For most binding-pocket-based molecular generative
+models, there exists an implicit expectation beyond mere generation
+SMILES or 2D molecular graph: the simultaneous prediction of precise
+binding conformations for the generated molecules, critical yet
+underappreciated requirement for SBDD. However, current 3D mole-
+cular generative approaches often yield physically implausible mole-
+cular structures35. To quantitatively evaluate structural validity, we
+employed the PoseBusters package, a rigorously validated framework
+that performs a comprehensive suite of standard quality checks.
+PoseBusters evaluates both intramolecular plausibility (e.g., aromatic
+ring planarity, compliance with standard bond lengths/angles) and
+intermolecular compatibility (e.g., steric clashes between ligand and
+pocket residues). Detailed computational protocols are provided in
+the Methods section.
+As illustrated in Fig. 3a, the results demonstrate a different per-
+formance across the evaluated methods. Among de novo approaches,
+MolCraft yields high validity score (0.964), with a corresponding PB-
+valid score of 0.783 after conformational quality checks, indicating
+that most of its generated valid molecules (~81%) adopt structurally
+plausible conformations. In contrast, PocketFlow, which ranks second,
+achieves a perfect validity score of 1.000 but exhibits a markedly lower
+PB-valid score of 0.449, implying that fewer than half of its valid
+molecules have reasonable conformation. The remaining de novo
+methods not only show lower validity proportions (Fig. 2c) but also
+display substantially reduced PB-Valid score among valid molecules,
+with PB-Valid scores falling below half or even one-third of their
+validity values, exempliﬁed by Pocket2Mol (0.878 vs. 0.388), SurfGen
+(0.370 vs. 0.103), and FLAG (0.136 vs. 0.001).
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 6\n\n===== PAGE 7 =====\nFor H2L models (Fig.3a), DiffSBDD-M achieved the highest overall
+pass rate (0.598), followed by Delete (0.563), DiffSBDD-C (0.558), and
+DiffDec (0.466). These models outperformed all de novo models
+except MolCraft, while the ligand-based method ShEPhERD (0.292)
+ranked last. These results demonstrate the limitations of relying solely
+on ligand features (vs. pocket and fragment context) for conforma-
+tional prediction. Results stratiﬁed by targets in or not in CrossDock
+training set, provided in Fig. 4, are consistent with the overall trend.
+Notably, nearly all methods exhibit lower PB-valid scores on proteins
+not in CrossDock training set compared to in ones, underscoring
+challenges in generalizing conformational prediction to targets.
+Owing to the scarcity of experimentally determined protein-
+ligand complex structures, most current studies resort to using com-
+putationally generated docking poses as supervisory signals. Among
+Hit to Lead
+0 2 4 6 8 10 14 12
+DiffSBDD-C
+DiffSBDD-M
+DiffDec
+Delete
+ShEPhERD
+PGMG
+ShapeMol
+DiffSBDD-M
+PocketFlow
+SurfGen
+MolCraft
+TamGen
+DecompDiff
+TargetDiff
+FLAG
+De Novo
+0 10 20 30 40 50 60 70 80
+DiffSBDD-C
+DiffSBDD-M
+DiffDec
+Delete
+ShEPhERD
+ShapeMol
+102
+103
+104
+Raw Vina Strain
+Energy
+102
+103
+104
+Strain
+Energy
+Raw Vina
+DiffSBDD-M
+PocketFlow
+DecompDiff
+MolCraft
+Pocket2Mol
+TargetDiff
+FLAG
+Protein-Ligand Max Distance
+Protein Min Distance
+Protein Volume Overlap
+Aromatic Ring Flatness
+PB Valid
+Internal Energy
+Bond Angles
+Internal Steric Clash
+Bond Lengths
+De Novo Hit to Lead
+Pass Rate
+0.4
+0.6
+0.8
+1.0
+0.2
+0.0
+0.00 0.05
+Proportion(r.m.s.d.<2Å)
+DiffSBDD-C
+ShapeMol
+DiffSBDD-M
+Delete
+PGMG
+ShEPhERD
+DiffDec
+Models
+TamGen
+DecompDiff
+SurfGen
+MolCraft
+DiffSBDD-M
+Pocket2Mol
+DiffSBDD-C
+FLAG
+Models
+Hit to Lead
+De Novo
+a
+de
+g
+f
+b
+c
+i
+Raw
+Vina
+Raw
+Vina
+DiffSBDD-M
+PocketFlow
+DecompDiff
+MolCraft
+Pocket2Mol
+TargetDiff
+FLAG
+0.10 0.15 0.20 0.25 0.30 0.35
+0.00 0.10 0.20 0.30 0.40 0.50
+Proportion(r.m.s.d.<2Å)
+DiffSBDD-C
+DiffSBDD-M
+DiffDec
+Delete
+ShEPhERD
+All Proteins 
+Proteins in CrossDock
+Proteins Not in CrossDock
+All Proteins 
+Proteins in CrossDock
+Proteins Not in CrossDock
+0.75
+1.00
+0.50
+0.25
+0.75
+1.00
+0.50
+0.25
+h
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 7\n\n===== PAGE 8 =====\nvarious tools, AutoDock Vina (Vina) has become the de facto standard
+for constructing such datasets, including the widely adopted Cross-
+Dock set, due to its ef ﬁciency and accessibility. We therefore treat
+Vina-generated poses as docking-derived workﬂow references rather
+than ground truth bioactive conformations. Such references are
+practical at scale but imperfect: a model that generated the experi-
+mentally correct bioactive pose could still appear inconsistent if Vina
+predicts an incorrect pose for that target. Accordingly, we interpret
+redocking r.m.s.d. as a measure of docking-workﬂow consistency, and
+assess it together with orthogonal physical-plausibility metrics,
+including PoseBusters pass rate, strain energy, steric clash frequency,
+and interaction features. To examine whether generated poses are
+physically usable in a docking workﬂow, we analyzed the strain energy
+(a measure of intramolecular stability) of binding conformations
+across different quantiles. As shown in Fig. 3b, for de novo methods,
+the directly generated conformations generally exhibit higher strain
+energies compared to those from Vina. The relatively better perfor-
+mance of FLAG at the 25th quantile can be attributed mainly to two
+factors: its low number of valid molecules (reducing variability) and
+post-generation force ﬁeld re ﬁnement. These results indicate that
+current de novo methods have not yet matched Vina-derived refer-
+ences in producing low-strain-energy conformations, although several
+approaches, including MolCraft, DecompDiff and PocketFlow,
+demonstrated competitive potential, suggesting that diverse
+architectural strategies hold promise for improved conformational
+modeling. For H2L models (Fig.3e), the conformational strain energies
+of most approaches are closer to those produced by Vina compared
+to de novo design methods. This indicates that providing
+reference molecular information or initial fragments facilitates the
+generation of conformations with more realistic strain energy proﬁles.
+Among H2L models, crystal-trained DiffSBDD-M outperformed
+simulation-trained DiffSBDD-C, further suggesting that increasing
+training data quality can improve the physical plausibility of generated
+conformations.
+Furthermore, in Fig. 3c, d, we quanti ﬁed the average number of
+clashes between generated conformations and the protein pocket, a
+critical metric for binding feasibility, as severe steric overlaps directly
+preclude stable ligand-protein interactions and render such con-
+formations biologically implausible. Notably, some generative models
+showed favorable behavior relative to Vina-derived references in
+minimizing these detrimental clashes: among de novo models, Mol-
+Craft achieved the lowest clash frequency and outperformed Vina; for
+H2L models, Delete and DiffDec similarly exhibited lower clash fre-
+quencies than Vina. This indicates that certain advanced deep learning
+methods can surpass the patterns inherent in the training data derived
+from Vina generated poses and deliver improved steric compatibility
+between ligands and proteins. Stratifying by CrossDock training set
+inclusion (Supplementary Figs. 7, 8) showed no signi ﬁcant perfor-
+mance differences. The results align closely with those from the full
+dataset, suggesting that conformational strain or clash performance is
+relatively less dependent on prior target exposure.
+Experimentally determining the binding conformations of all
+generated molecules is nearly infeasible. In theﬁeld of protein design,
+it has become a widely accepted computational validation practice, as
+exempliﬁed by tools such as RFdiffusion45, to assess the rationality of
+generated conformations by comparing them against those predicted
+by specialized structure prediction tools like AlphaFold246 and evalu-
+ating their consistency. For molecular generation, analyses based on
+strain energy and protein-ligand clashes indicate that traditional
+docking methods still outperform current generative approaches in
+conformational prediction accuracy. Given the lack of experimentally
+resolved binding conformations for generated molecules, Vina-
+generated poses provide a scalable and practically accessible refer-
+ence for evaluating docking-consistency at benchmark scale. However,
+these references should not be interpreted as de ﬁnitive bioactive
+poses, and the resulting r.m.s.d.-based analysis should be interpreted
+as measuring consistency with a conventional docking workﬂow rather
+than deﬁnitive recovery of the true binding mode. Additional analyses
+of docked and generated conformations are provided in Supplemen-
+tary Table 1 and Supplementary Fig. 9.
+We evaluated both de novo and H2L models by quantifying the
+proportion of generated poses with r.m.s.d. <2 Å relative to poses re-
+docked using Vina (detailed results in Fig. 3f, h). Among the de novo
+methods, SurfGen performed best, with 22.9% of its poses achieving
+r.m.s.d. <2 Å, followed by MolCraft (22.2%) and DiffSBDD-M (15.3%).
+In the H2L category, the top-performing method is DiffDec, with
+21.8% of its poses showing r.m.s.d. <2 Å, followed by Delete (19.8%).
+These results indicate that only a small fraction of the poses gener-
+ated by current methods exhibit binding modes consistent with
+those derived from docking. Meanwhile, our analysis further exam-
+ined the inﬂuence of protein presence in the training data. As shown
+in Fig. 3f, h, nearly all models exhibited weaker redocking perfor-
+mance on proteins unseen during training compared to those seen
+previously. This indicates that evaluating redocking performance
+solely on seen proteins may lead to an overestimation of model
+capability, underscoring the necessity of including unseen proteins
+in such assessments. However, the r.m.s.d. metric calculated in this
+manner is not an ideal indicator, as it is in ﬂuenced by both the
+accuracy of the docking method and the ﬂexibility of the molecules
+involved. In Supplementary Figs. 10, 11, we analyzed the distributions
+of rotatable bonds and ring counts in molecules generated by all
+models in a single sampling round. Among de novo models, SurfGen
+produced molecules with the fewest rotatable bonds on average and
+the highest average number of rings, resulting in the lowest mole-
+cular ﬂexibility. This structural rigidity reduced conformational
+complexity, facilitating more accurate pose prediction and thereby
+contributing to its improved redocking r.m.s.d. performance. A
+similar trend was observed for Pocket2Mol. Among H2L models,
+ShapeMol exhibited the highest average ring count and the fewest
+rotatable bonds. However, since its generated conformations are not
+guaranteed to be positioned within the binding pocket, ShapeMol
+was excluded from the redocking r.m.s.d. evaluation.
+Fig. 3 | Multi-dimensional assessment of physical plausibility and docking-
+workﬂow consistency in structure-based molecular generative models.
+a PoseBusters validation results for de novo and H2L generative models across all
+protein targets. PB Valid denotes molecules passing all PoseBusters checks. Mole-
+cules generated by ShapeMol were excluded from this evaluation due to the lack of
+guaranteed placement within the target binding pocket.b Strain energy distribu-
+tion of conformations generated by all de novo models across all protein targets.
+c Steric clash frequency of conformations generated by all H2L optimization
+models across all protein targets. d Steric clash frequency of conformations gen-
+erated by all de novo models across all protein targets.e Strain energy distribution
+of conformations generated by all H2L optimization models across all protein
+targets.f Redocking root mean square deviation (r.m.s.d.) evaluation of all de novo
+models on proteins stratiﬁed by CrossDock training set inclusion (all vs. training-
+seen vs. training-unseen).g Redocked interaction evaluation (vs. reference actives)
+of all de novo models across all protein targets.h Redocking r.m.s.d. evaluation of
+all H2L optimization models on proteins stratiﬁed by CrossDock training set
+inclusion (all vs. training-seen vs. training-unseen).i Redocked interaction evalua-
+tion (vs. reference actives) of all H2L optimization models across all protein targets.
+The PoseBusters pass rate was calculated using the total number of sampled
+molecules (not just chemically valid molecules) as the denominator. For (a, b, e),
+values are means of three independent repeats (n =3 ) ;f o r(c, d)a n d(f– i), bars show
+mean ± SD of three independent repeats (n = 3). Raw and Vina denote results cal-
+culated from the raw generated conformations and Vina-redocked conformations,
+respectively. Source data are provided as a Source Data ﬁle.
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 8\n\n===== PAGE 9 =====\nThese ﬁndings further indicate that when using r.m.s.d. to evalu-
+ate a model ’s ability to generate plausible conformations, caution is
+warranted against models potentially taking shortcuts by producing
+overly rigid molecular structures. Incorporating ﬂexibility analysis
+(e.g., rotatable bond and ring count) into the evaluation of r.m.s.d.
+performance enables a more comprehensive and objective under-
+standing of a model’s conformational prediction capability.
+To complement conformational plausibility assessments, we fur-
+ther designed a weighted, aggregate interaction scoring framework to
+reduce conformational uncertainty and enable more robust assess-
+ment of interactionﬁdelity (details in Methods section). To assess how
+well models replicate reference-like interaction patterns, we quantiﬁed
+the proportion of generated molecules whose interaction scores
+exceeded key quantiles (25th, 50th, 75th) of reference active scores.
+All analyses used interaction scores computed after redocking
+generated molecules with Vina to ensure alignment with physiologi-
+cally relevant binding modes. Results for de novo and H2L models are
+presented in Fig. 3g, i, respectively. Among de novo models (Fig. 3g),
+b
+a
+Proteins Not in CrossDock
+Proteins in CrossDock
+Fig. 4 | Comparative evaluation of conformational quality across generative
+models via PoseBusters. aPoseBusters validation results for all generative models
+(de novo and H2L) on proteins included in the CrossDock training set.
+b PoseBusters validation results for all generative models (de novo and H2L) on
+proteins not included in the CrossDock training set. PB Valid denotes molecules
+passing all PoseBusters checks. The PoseBusters pass rate was calculated using the
+total number of sampled molecules (not just chemically valid molecules) as the
+denominator. Values represent the mean across three independent repeats (n =3 ) .
+Source data are provided as a Source Data ﬁle.
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 9\n\n===== PAGE 10 =====\nMolCraft performed best: 54.1%, 31.9%, and 12.7% of its molecules
+exceeded the 25th, 50th, and 75th quantiles, respectively. These values
+were the highest in the de novo category but were substantially lower
+than the corresponding proportions for reference actives, highlighting
+a persistent gap in replicating functional interactions. Other compe-
+titive de novo models included TamGen, Pocket2Mol, PocketFlow,
+DiffSBDD-M and DiffSBDD-C. For H2L models (Fig.3i), Delete delivered
+the strongest performance: 57.6%, 37.0%, and 16.0% of its molecules
+exceeded the 25th, 50th, and 75th quantiles, respectively. These values
+align more closely with the reference actives than those from the best
+de novo model, MolCraft. The next best performers were pocket-
+based methods such as DiffSBDD-M, DiffSBDD-C and DiffDec, while
+ligand-based approaches ranked lowest. This underscores the impor-
+tance of explicitly incorporating pocket information for accurate
+interaction modeling. Among ligand-based methods, those integrating
+pharmacophore constraints (PGMG, ShEPhERD) outperformed Sha-
+peMol (shape-only), con ﬁrming that pharmacophore awareness
+enhances capture of critical interaction patterns, even in the absence
+of pocket context.
+To further assess the quality of interactions in the generated
+poses by these methods, we compared the interaction scores calcu-
+lated between the generated poses and the docked reference poses,
+along with their statistical outcomes, and evaluated model perfor-
+mance across different protein subsets (Supplementary Fig. 12). For
+both de novo and H2L models, whether using Vina docked poses or
+generated poses, nearly all methods that include protein information
+in input performed worse on proteins not in CrossDock than on pro-
+teins seen during training, reinforcing that performance on familiar
+targets overestimates real-world utility. Furthermore, when comparing
+pose sources, different methods exhibited distinct behaviors. Among
+de novo models, MolCraft, Pocket2Mol, TargetDiff, DiffSBDD-M, and
+DiffSBDD-C achieved higher interaction scores with their generated
+poses than with Vina docked poses across both protein subsets.
+Similarly, H2L models, Delete and DiffDec showed the same trend. In
+contrast, the remaining methods attained higher interaction scores
+using Vina docked poses compared to their original generated poses,
+indicating their generated conformations lack intrinsic interaction
+ﬁdelity. These observations suggest that, at the level of interaction
+modeling, certain methods may have surpassed the capability of
+classical tools such as Vina, representing a promising step toward more
+accurate SBMG. In addition, overall, among models trained exclusively
+on the CrossDock dataset, MolCraft and Delete showed the best
+overall performance in the de novo and H2L settings, respectively,
+further highlighting the advantages of their architectures in con-
+formational prediction.
+Limited Capacity of Current Molecular Generative Models to
+Rediscover Known Active Compounds: A Target-Stratiﬁed
+Evaluation
+By moving beyond error-prone computational proxies like docking
+scores, we directly assessed the models ’ ability to rediscover experi-
+mentally validated active compounds and scaffolds across diverse
+protein targets. This evaluation directly reﬂects a model’s utility in hit
+discovery, as ligand identi ﬁcation for a given target relies on two
+complementary computational paradigms: virtual screening (ranking
+existing library molecules by predicted activity) and de novo design
+(generating structures via learned ligand-target interaction rules).
+While their methodologies differ, both aim to identify potent ligands
+that bind the target of interest. Virtual screening offers a practical
+advantage: hit compounds identiﬁed from commercial libraries can be
+rapidly acquired for experimental validation, facilitating the direct
+assessment of the screening protocol. In contrast, molecules gener-
+ated through de novo design typically require de novo synthesis,
+which presents a signi ﬁcant barrier to experimental con ﬁrmation.
+Owing to this synthetic bottleneck, the ﬁeld often relies on
+computational docking scores as a proxy metric to prioritize gener-
+ated molecules with predicted high activity. However, the well-
+documented high false-positive rate associated with these scoring
+functions severely limits their reliability in gauging a model ’st r u e
+potential for identifying genuine binders 47– 49. To overcome this lim-
+itation and provide a more rigorous evaluation, we curated an exten-
+sive set of known active compounds across diverse protein targets.
+This benchmark enables the direct assessment of a generative model’s
+capacity to discover active ligands, offering a realistic measure of its
+utility in hit discovery stage. We evaluated de novo generative models
+for their ability to recover known active molecules (hit recovery) and
+Bemis-Murcko scaffolds (scaffold recovery) across the 120 targets. To
+dissect model performance on familiar versus unseen targets, which is
+a key measure of real-world utility, we further stratiﬁed performance
+by “Proteins in CrossDock” vs. “Proteins Not in CrossDock”
+As shown in Figs. 5aa n d 5c, while most methods struggled to
+generate exact active molecules in both settings, the majority suc-
+ceeded in reproducing Bemis-Murcko scaffold across many targets.
+This suggests that current approaches capture only coarse-grained
+patterns of protein-ligand interactions, failing to model the precise
+steric and electronic complementarity required to generate speci ﬁc
+R-group decorations.
+On Proteins in CrossDock (Fig.5a), only TamGen recovered exact
+active molecules for more than a handful of targets, all other methods
+showed minimal success (recovering actives for 0– 6 targets). To test if
+performance stemmed from memory of training data (rather than
+learned generalizable rules), we re-evaluated hit recovery after
+removing any generated molecules/scaffolds overlapping with Cross-
+Dock’s training set (Fig. 5b). Most models exhibited performance
+declines: TamGen’s active molecule recovery dropped from 30.3 to
+18.7 targets, while scaffold recovery rates decreased across all meth-
+ods. FLAG and SurfGen showed particularly poor scaffold recovery
+post-deduplication. For exact molecule recovery, only DiffSBDD-M,
+SurfGen, MolCraft, and PocketFlow achieved modest success (reco-
+vering actives for 3– 5t a r g e t s ) .
+We further computed the maximum Tanimoto similarity between
+generated scaffolds and scaffolds in CrossDock training data (Fig.5d).
+Autoregressive models, particularly TamGen, SurfGen, FLAG, Pocket-
+Flow and Pocket2Mol produced numerous scaffolds same as training
+examples and analogs highly similar to training examples, with Tam-
+Gen generating many nearly identical or identical replicates of known
+molecules (Supplementary Fig. 13), conﬁrming that their performance
+on proteins in CrossDock is in ﬂated by memory effects. On Proteins
+Not in CrossDock (Fig.5c), half of the de novo models failed to recover
+any active molecules, a stark contrast to the Proteins in CrossDock
+subset, where only TargetDiff showed complete failure. This highlights
+substantial overﬁtting in current de novo models and limited gen-
+eralization to targets. Under this conﬁguration, TamGen still recovered
+active molecules for the highest number of protein targets, demon-
+strating the unique advantage of its pre-training on a large corpus of
+active molecules.
+To complement our de novo model analysis, we evaluated the
+capability of H2L methods to recover active molecules/scaffolds.
+Compared to de novo design, the provision of molecular fragments
+effectively constrains the search space and offers critical structural
+context to guide bioactive generation. As illustrated in Fig. 5e, f,
+fragment-based H2L models (incorporating protein pocket and
+molecular fragment information) outperformed ligand-based meth-
+ods (relying solely on active ligand features) across both target sub-
+sets. Among fragment-based approaches, the autoregressive model
+Delete achieved the highest performance, successfully recovering
+active molecules in 44.3 series and scaffolds in 221.3 series corre-
+sponding to proteins in CrossDock. Within the diffusion-based fra-
+meworks, DiffDec exhibited superior results, retrieving active
+molecules in 34.3 series and scaffolds in 167.0 series associated with
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 10\n\n===== PAGE 11 =====\n20
+30
+40
+50
+10
+60
+70
+0
+69.7 69.3 69.0 66.0 66.0 65.7 61.3 61.3
+53.0
+46.7
+Proteins in CrossDock
+30.3
+2.7 2.0 1.0
+5.3 3.0
+1.0 0.0 1.0
+3.7
+)58=n( stegraT fo rebmuN
+20
+30
+40
+50
+10
+60
+70
+0
+68.0 66.3 65.0 63.7 63.0 62.0
+57.7
+55.0
+45.7
+38.7
+Proteins in CrossDock
+(Remove SMILES and scaffolds in CrossDock training set)
+1.7 2.7
+5.3
+1.0 2.7
+18.7
+1.0 0.0 0.7
+3.7
+Number of Targets (n=85)
+10
+15
+20
+25
+5
+30
+35
+0
+34.3 33.3 33.3
+32.0
+29.0 28.7 28.3
+20.7
+Proteins Not in CrossDock
+1.3 0.3 1.0
+4.7
+1.0 0.0
+33.3 33.3
+0.00.0 0.0
+)53=n( stegraT fo rebmuN
+Proportion0.4
+0.6
+0.8
+1.0
+0.2
+0.0
+Max similarity between found scaffolds and CrossDock training set
+n=337 n=125 n=361 n=236 n=450 n=99 n=291 n=201 n=324 n=277
+Similarity Interval
+[0.0-0.3)
+[0.3-0.6)
+[0. 6-1.0)
+[1.0,1.0]
+a
+dc
+ef
+b
+0.0
+60
+70
+80
+20
+0
+81.0
+69.7 69.7 65.3
+19.0 16.0
+Proteins Not in CrossDock
+13.3 16.7 17.3 18.7
+3.0 2.3 0.0
+3.7
+30
+40
+50
+10
+Number of Series (n=175)
+100
+150
+200
+50
+0
+221.3
+193.3
+182.3
+167.0
+62.3 57.7
+Proteins in CrossDock
+44.3
+31.3 26.7 34.3
+21.0
+6.0 0.0
+9.7
+)524=n( seireS fo rebmuN
+Fig. 5 | Evaluation of molecular generative models for identifying active
+molecules and scaffolds. aDe novo models on proteins in CrossDock.b De novo
+models on proteins in CrossDock, after excluding generated molecules/scaffolds
+overlapping with the CrossDock training set.c De novo models on proteins not in
+CrossDock. d Maximum similarity between active scaffolds from de novo models
+and CrossDock training set scaffolds.e H2L models on compound series for pro-
+teins in CrossDock. f H2L models on compound series for proteins not in Cross-
+Dock. Note all evaluations assess model ability to recover active molecules and
+active Bemis-Murcko scaffolds, where histogram bars represent the mean number
+of targets where models recovered at least one active molecule (hatched bars) or at
+least one active Bemis-Murcko scaffold (solid bars). For (a– c)a n d(e, f), data are
+presented as mean ± SD across three independent repeats (n = 3). Notably, the H2L
+model DiffDec requires predeﬁned atomic anchors to identify modiﬁcation sites.
+These anchors are derived by aligning the common substructure of the compound
+series to reference actives; shared modiﬁcation sites across reference actives are
+weighted by their occurrence frequency, and molecule generation is guided by
+these sites. Source data are provided as a Source Data ﬁle.
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 11\n\n===== PAGE 12 =====\nknown targets. DiffSBDD, which employs a molecular inpainting
+strategy, demonstrated considerable optimization capability, high-
+lighting both the advantage of inpainting-based approaches and the
+broader potential of integrating such techniques with de novo design
+for molecular optimization. Notably, DiffSBDD-C, trained on a larger
+set of diverse small molecules, demonstrates a discernible advantage
+over DiffSBDD-M which was trained exclusively on crystal structures
+when evaluated on proteins in CrossDock. This result underscores the
+effectiveness of expanding molecular diversity in enhancing molecular
+optimization performance. Among ligand-based methods, approaches
+incorporating pharmacophore constraints (ShEPhERD, PGMG) out-
+performed those relying exclusively on shape information (ShapeMol).
+This is likely attributable to the richer chemical information and
+implicit receptor-speci ﬁc features captured by pharmacophore
+representations. Furthermore, ShEPhERD signi ﬁcantly surpassed
+PGMG, potentially due to its integration of multimodal information
+and effective leveraging of such signals to guide molecule generation.
+On Proteins Not in CrossDock, trends mirrored those in the
+training-seen subset. However, diffusion-based H2L models (DiffDec,
+DiffSBDD) exceeded autoregressive Delete in active molecule recov-
+ery. This highlights the superior generalization of diffusion frame-
+works for optimizing molecules against targets, a critical advantage for
+real-world drug discovery where many targets lack extensive
+training data.
+In evaluating structure-based molecular generative models, the
+“active compound rediscovery ” task should be interpreted with
+appropriate caution. The experimentally validated active molecules
+curated in MolGenBench, although extensive in scale, represent only a
+limited and inherently biased subset of the true bioactive chemical
+space for each target, constrained by currently available assays, tech-
+nologies, and data sources50,51. Given the vastness of drug-like chemical
+space, it is entirely possible that some generated molecules that do not
+match known actives may nonetheless be potentially superior binders.
+In this context, rediscovery-based metrics should be understood as
+conservative, reference-based measures of overlap with the currently
+known bioactive space, rather than de ﬁnitive indicators that non-
+rediscovered molecules are inactive or of low quality. At the same time,
+model exploration itself is shaped by architectural biases and ﬁnite
+sampling, which further limits exhaustive coverage of bioactive space.
+Therefore, failure to recover known actives for a given target may
+reﬂect both the incompleteness of existing reference data and the
+exploration limitations of current generative models, rather than the
+absence of value in newly generated compounds. To reduce over-
+interpretation, we complement rediscovery analyses with multi-target
+statistics, stratiﬁed evaluation on proteins in versus out of CrossDock,
+and multiple orthogonal metrics. Under this framework, consistent
+failure to recover active molecules across many targets and indepen-
+dent replicates is more appropriately interpreted as evidence of a
+systematic limitation in navigating known bioactive chemical space.
+Limited screening efﬁciency of current molecular generative
+models: a hit rate-based evaluation
+In the preceding section, we examined whether these generative
+methods could successfully rediscover active molecules for their
+respective targets. However, this rediscovery-focused evaluation does
+not capture a critical practical attribute: the ef ﬁciency with which
+models identify active compounds in real-world applications. In virtual
+screening, hit rate is a widely used practical metric that serves as a
+robust indicator of the ef ﬁciency with which active compounds are
+identiﬁed within a single screening campaign52. This metric is of critical
+importance in real-world hit discovery efforts.
+To systematically characterize the ef ﬁciency of each model in
+discovering active entities, we quanti ﬁed the hit rate (see details in
+Methods section) of each model for both active molecule and active
+scaffold discovery. As shown in Fig. 6a, b, de novo generative models
+exhibited remarkably low hit rates for active molecule discovery. On
+average, the highest molecular hit rate among these models was only
+0.124% when evaluated on proteins included in the CrossDock training
+set, and this value dropped to just 0.024% for proteins not in Cross-
+Dock. In contrast, the hit rate for active scaffold discovery was more
+than 10-fold higher across all de novo models, highlighting that gen-
+erating pharmacologically plausible scaffolds is substantially less
+challenging than generating fully active molecules with precise steric
+and electronic complementarity to the target pocket. Nevertheless,
+progressing from identi ﬁed active scaffolds to functionally active
+molecules remain a major bottleneck for current de novo
+methodologies.
+Ad i r e c tc o m p a r i s o nb e t w e e nF i g .6a, b further reveals that all de
+novo models exhibited reduced efﬁciency in active molecule discovery
+when tested on proteins outside the CrossDock training set; most
+models also showed declines in active scaffold hit rates for these
+unseen targets. Notably, among de novo models, PocketFlow
+demonstrated the most consistent performance across both seen and
+unseen targets, with active scaffold hit rates exceeding 10% overall and
+reaching over 30% for certain targets. This robustness underscores the
+value of its integrated molecular pre-training (on the ZINC database) in
+enhancing generalization to targets. For TamGen, while its scaffold-
+level hit rate was notably low, it achieved the highest molecular hit rate
+among de novo models in both test scenarios. However, its molecular
+hit rate was signiﬁcantly lower on proteins not in CrossDock compared
+to those present in CrossDock, further suggesting potential data
+leakage during training.
+To dissect the impact of model architecture on screening ef ﬁ-
+ciency, we focused on de novo models trained exclusively on the
+CrossDock dataset (DecompDiff, MolCraft, DiffSBDD-C, Pocket2Mol,
+TargetDiff, SurfGen, and FLAG). Across both seen and unseen proteins,
+the top three performers in terms of hit rate were consistently either
+diffusion-based models or those leveraging BFNs. In contrast, auto-
+regressive models (e.g., Pocket2Mol, SurfGen, FLAG) clearly under-
+performed on this metric. These results suggest that, for de novo
+molecule generation, further integration of molecular pre-training
+with advanced diffusion modeling holds promise for enhancing the
+efﬁciency of discovering active molecules and scaffolds.
+We extended this hit rate evaluation to the H2L optimization task.
+As shown in Fig.6c, d, fragment-based H2L models (which incorporate
+both fragment constraints and protein pocket context) exhibited a
+distinct advantage in hit rate relative to ligand-based counterparts
+(which rely solely on structural features of known active ligands). This
+ﬁnding underscores the superiority of directly integrating target
+structural context and fragment information over relying exclusively
+on ligand-derived features for optimization. Furthermore, among
+models speciﬁcally designed for H2L optimization, the diffusion-based
+DiffDec outperformed the autoregressive Delete; inpainting-based
+methods (e.g., DiffSBDD-C, DiffSBDD-M) also demonstrated strong
+performance.
+Compared to de novo models, fragment-based H2L models
+(DiffDec, Delete, DiffSBDD-C, DiffSBDD-M) achieved signi ﬁcantly
+higher hit rates for active molecules. However, their scaffold-level hit
+rates were lower than those of the best de novo model (PocketFlow).
+This trade-off arises because H2L models are tasked with growing or
+modifying a predeﬁned fragment, conﬁning chemical space explora-
+tion to regions adjacent to theﬁxed scaffold and thereby reducing the
+diversity of generated scaffolds relative to de novo design.
+Insufﬁcient utilization of protein structural information in de
+novo generative models: evaluation via the Target-Aware Score
+(TAScore)
+While the preceding section assessed de novo molecular generative
+models’ability to recover active molecules and scaffolds, a critical gap
+remains: activity recovery alone does not guarantee target selectivity,
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 12\n\n===== PAGE 13 =====\nDiffSBDD-M
+PocketFlow
+DecompDiff
+MolCraft
+TamGen
+Pocket2Mol
+TargetDiff
+FLAG
+Proteins in CrossDock
+0.4 0.6 0.8 1.00.20
+DiffSBDD-M
+PocketFlow
+DecompDiff
+MolCraft
+TamGen
+Pocket2Mol
+TargetDiff
+FLAG
+Proteins Not in CrossDock
+0.4 0.6 0.8 1.00.20
+DiffSBDD-C
+DiffSBDD-M
+PocketFlow
+DecompDiff
+MolCraft
+TamGen
+Pocket2Mol
+TargetDiff
+FLAG
+SurfGen
+0 51 0 1 5 2 0 2 5
+13.592
+0.003 4.487
+0.010 3.871
+0.024
+0.000
+0.001
+0.003
+0.000
+0.000
+0.000
+0.000
+3.806
+2.811
+2.590
+1.964
+1.885
+1.166
+0.269
+Scaffold (Above)
+SMILES (Below)
+Hit Rate Distribution (Proteins Not in CrossDock)
+Hit Rate (%)
+DiffSBDD-C
+DiffSBDD-M
+PocketFlow
+DecompDiff
+MolCraft
+TamGen
+Pocket2Mol
+TargetDiff
+FLAG
+SurfGen
+0 5 10 15 20 25 30
+11.524
+0.004 4.887
+0.002 4.291
+0.012
+0.006
+0.004
+0.124
+0.001
+0.000
+0.001
+0.006
+3.451
+3.027
+2.473
+1.871
+1.660
+1.003
+0.703
+Scaffold (Above)
+SMILES (Below)
+Hit Rate Distribution (Proteins in CrossDock)
+Hit Rate (%)
+DiffSBDD-C
+DiffSBDD-M
+DiffDec
+Delete
+02 0 4 0 6 0 8 0
+8.216
+0.142
+6.517
+0.084
+0.066
+0.061
+0.011
+0.007
+0.000
+4.836
+0.425
+0.183
+0.041
+Scaffold (Above)
+SMILES (Below)
+Hit Rate Distribution (Proteins Not in CrossDock)
+Hit Rate (%)
+ShEPhERD
+PGMG
+ShapeMol
+4.749
+100
+DiffSBDD-C
+DiffSBDD-M
+DiffDec
+Delete
+01 0 2 0 3 0 40 50 60 70
+8.702
+0.095 7.529
+0.098
+0.041
+0.048
+0.028
+0.008
+0.000
+5.877
+0.528
+0.503
+0.042
+Scaffold (Above)
+SMILES (Below)
+Hit Rate Distribution (Proteins in CrossDock)
+Hit Rate (%)
+ShEPhERD
+PGMG
+ShapeMol
+5.355
+a
+dc
+ef
+b
+0-1 1-10 10-100 >100
+80
+Fig. 6 | Comprehensive evaluation of screening efﬁciency and target-awareness
+in molecular generative models. a Hit rate distribution of de novo generative
+models for proteins included in the CrossDock training set (n =8 5 ) .b Hit rate
+distribution of de novo generative models for proteins not included in the Cross-
+Dock training set (n = 35). c Hit rate distribution of H2L optimization models for
+proteins included in the CrossDock training set (n =4 2 5 ) .d Hit rate distribution of
+H2L optimization models for proteins not included in the CrossDock training set
+(n = 175). e Evaluation of target-aware capabilities in de novo generative models for
+proteins included in the CrossDock training set (n = 85). f Evaluation of target-aware
+capabilities of de novo generative models for proteins not included in the Cross-
+Dock training set (n = 35). All data points represent the mean of three independent
+repeats. Notably, the H2L model DiffDec requires predeﬁned atomic anchors to
+identify modiﬁcation sites. These anchors are derived by aligning the common
+substructure of the compound series to reference actives; shared modiﬁcation sites
+across reference actives are weighted by their occurrence frequency, and molecule
+generation is guided by these sites. Source data are provided as a Source Dataﬁle.
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 13\n\n===== PAGE 14 =====\nwhich is a key requirement for safe, clinically viable drugs. Ideally,
+SBMG should leverage unique features of a target protein ’sb i n d i n g
+pocket (e.g., size, residue composition, electrostatic potential) to
+produce molecules with target-speciﬁc binding, rather than generic
+structures that may interact with off-target proteins. Conventional
+molecular property metrics, along with the active recovery rate and
+scaffold recovery rate discussed in the previous section, fail to capture
+am e t h o d’s ability to perceive and utilize target-speci ﬁc information.
+Therefore, in this section, we propose an evaluation metric, the Target-
+Aware Score (TAScore), to assess target-aware capability. TAScore
+should not be interpreted as a direct activity-based biological selec-
+tivity metric. Rather, it asks whether a model can generate target-
+enriched chemotypes rather than pan-target chemotypes that lack
+discrimination across pockets (see details in Methods section).
+We applied the TAScore to assess target awareness across all de
+novo models, stratifying targets by their presence in the CrossDock
+training set (Fig. 6e, f). At the scaffold level (TAScore scaffold), Pocket-
+Flow exhibited the strongest target sensitivity: For proteins included in
+the CrossDock training set, only 23 targets (27.06%) had a
+TAScorescaffold < 1 (indicating no target awareness), compared with
+38.82% for TargetDiff (the second-highest performer) and 49.41% for
+DiffSBDD-C (third). All other de novo models failed to demonstrate
+target awareness (TAScore scaffold) for >50% of CrossDock-included
+targets. For proteins not included in the CrossDock training set,
+PocketFlow maintained robust performance: only 28.57% of targets
+had TAScorescaffold < 1. All other models showed TAScorescaffold <1 f o r
+>50% of targets, highlighting PocketFlow’s unique ability to perceive
+and utilize target-speciﬁc information.
+At the molecular level (TAScore SMILES), target awareness was
+substantially weaker across all models, reﬂecting the greater challenge
+of generating fully active, target-speciﬁc molecules (vs. scaffolds): For
+CrossDock-included proteins: TamGen achieved TAScoreSMILES >1 f o r
+26 targets (30.59%), the highest among all models. DiffSBDD-M, Mol-
+Craft, and SurfGen followed, with TAScoreSMILES > 1 for 8, 5, and 5 tar-
+gets (9.41%, 5.88%, and 5.88%), respectively. All other models
+had TAScoreSMILES > 1 for <5 targets. For proteins (not in CrossDock):
+Only ﬁve models demonstrated minimal target awareness: TamGen (4
+targets), DiffSBDD-M (2), DiffSBDD-C (2), MolCraft (1), and PocketFlow
+(1). Notably, previous analyses suggest that the moderately better
+performance on proteins in CrossDock, particularly by methods such
+as TamGen may be attributed to their tendency to produce known
+active molecules or close analogues repeatedly. This is consistent with
+its sharp performance drop on targets. Our dataset contains a diverse
+range of protein families, and further detailed analyses of family-level
+TAScore results are provided in Supplementary Tables 2, 3 and Sup-
+plementary Fig. 14.
+Collectively, these results reveal a fundamental limitation of cur-
+rent de novo generative models: despite their design intent to leverage
+protein structural information, most fail to generate target-speci ﬁc
+molecules. Instead, they often generate identical or highly similar
+scaffolds and molecules across different targets, a behavior that is
+undesirable in practical applications, as it may lead to substantial off-
+target effects. Given that H2L models are constrained to generate
+compounds based on given fragment of known actives, this analysis
+was not applied to them.
+Limited coverage of bioactive chemical space by molecular
+generative models: hit fraction evaluation and inference-time
+sampling analysis
+While the hit rate metric effectively quanti ﬁes the ef ﬁciency of iden-
+tifying active compounds or scaffolds, it fails to capture two critical
+dimensions of practical relevance: the structural diversity of the dis-
+covered active entities and their coverage relative to the full known
+bioactive chemical space of a target. Evaluating a model ’s ability to
+explore this bioactive space comprehensively is essential for assessing
+its utility in real-world drug discovery, where the goal is to identify a
+broad spectrum of viable candidates, not just a small subset. To
+address this gap, we propose the hit fraction metric to quantify the
+extent to which a model probes the active chemical space of a target
+(see details in Methods section).
+We ﬁrst applied the hit fraction metric to assess de novo gen-
+erative models across targets strati ﬁed by their presence in the
+CrossDock training set. As shown in Fig. 7a, b, de novo models exhib-
+ited exceedingly low coverage of the known active chemical space for
+both molecules and scaffolds. For targets included in CrossDock,
+TamGen achieved the highest mean hit fraction for molecules
+(0.067%), while PocketFlow led for scaffolds (0.942%). To disentangle
+true generalization from training data memorization, we re-evaluated
+performance after removing any generated molecules or scaffolds that
+overlapped with the CrossDock training set (Fig. 7d). This deduplica-
+tion caused a notable performance drop: the maximum molecular hit
+fraction fell to 0.023% (TamGen), and the scaffold hit fraction
+decreased to 0.783% (PocketFlow). Critically, the post-deduplication
+hit fraction of de novo models was substantially lower than their per-
+formance on targets not in CrossDock (Fig. 7b vs. d). A parallel trend
+was observed for the hit rate metric (Fig.7cv s .F i g .6a). These ﬁndings
+suggest that the models may tend to reproduce seen active samples or
+scaffolds from training data, leading to an overestimation of perfor-
+mance while discouraging exploration of a broader bioactive space.
+This result underscores the need to develop improved model archi-
+tecture and training strategies to overcome this limitation.
+As shown in Fig.7e, f, we conducted a corresponding evaluation of
+H2L models. In this test scenario, Delete and DiffDec delivered the
+strongest performance. Delete consistently identiﬁed a greater num-
+ber of distinct active scaffolds across different protein subsets, while
+DiffDec excelled at discovering active molecules on proteins. These
+were followed by the inpainting-based methods DiffSBDD-C and
+DiffSBDD-M. Among ligand-based methods, ShEPhERD achieved the
+best overall performance, followed by PGMG, with ShapeMol yielding
+the least favorable results. This trend underscores the practical value
+of incorporating richer prior information to enhance model efﬁcacy in
+lead optimization scenarios.
+Several noteworthy observations emerged: the proportion of
+active molecules and scaffolds identiﬁed by H2L models relative to the
+entire known active chemical space was substantially higher than that
+of de novo generation models. Furthermore, in contrast to the results
+from de novo design models, the hit fraction values for these optimi-
+zation approaches exceeded their hit rate values. This indicates that
+H2L methods can more effectively explore the target-active chemical
+space by leveraging the information from the given fragment. More-
+over, we observed that fragment-based H2L models achieved higher
+hit fraction values on proteins not in CrossDock than on those present
+in CrossDock. This result indicates that, when provided with an initial
+fragment, these models can leverage both protein pocket information
+and fragment constraints to achieve enhanced generalization
+capability.
+Owing to computational constraints, our initial baseline evalua-
+tions sampled 1000 molecules per target for de novo models and 200
+molecules per compound series for H2L models. Recent studies, par-
+ticularly in the domain of deep learning and large language models,
+have highlighted the presence of inference-time scaling laws53 where
+allocating greater computational resources during inference can lead
+to improved model performance. To test whether this phenomenon
+applies to molecular generative models, we selected computationally
+efﬁcient models from each category (de novo: TamGen, PocketFlow,
+MolCraft, DiffSBDD-C; H2L: DiffDec, DiffSBDD-C, ShapeMol, PGMG)
+and evaluated them across three distinct target systems. We sampled
+up to 100,000 molecules per target/series to assess whether increased
+sampling enhances the number of active scaffolds/molecules dis-
+covered and their hit rates (detailed procedures in Methods section).
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 14\n\n===== PAGE 15 =====\nA ss h o w ni nF i g .8a, all four de novo generative models produced
+a greater number of active scaffolds with increased sampling. How-
+ever, TamGen consistently underperformed relative to the other three
+m e t h o d sa c r o s sa l lt a r g e t s .T h ee fﬁciency of bioactive scaffold dis-
+covery diminishes with increased sampling for all models, revealing a
+fundamental exploration bottleneck. This bottleneck is most severe
+for TamGen, suggesting its generative landscape is less conducive to
+navigating diverse regions of bioactive chemical space. Figure 8b
+demonstrates that except for TamGen and PocketFlow, which failed to
+yield any active molecules in one target, all evaluated de novo
+DiffSBDD-C
+DiffSBDD-M
+PocketFlow
+DecompDiff
+MolCraft
+TamGen
+Pocket2Mol
+TargetDiff
+FLAG
+SurfGen
+01 2 3456 7
+0.880
+0.001 0.730
+0.000 0.688
+0.028
+0.005
+0.000
+0.002
+0.000
+0.000
+0.000
+0.000
+0.680
+0.640
+0.605
+0.514
+0.447
+0.313
+0.184
+Hit Fraction Distribution (Proteins Not in CrossDock)
+Hit Fraction (%)
+DiffSBDD-C
+DiffSBDD-M
+PocketFlow
+DecompDiff
+MolCraft
+TamGen
+Pocket2Mol
+TargetDiff
+FLAG
+SurfGen
+02 4 68
+0.942
+0.001 0.788
+0.000 0.783
+0.002
+0.003
+0.005
+0.067
+0.000
+0.000
+0.000
+0.002
+0.713
+0.679
+0.474
+0.296
+0.253
+Scaffold (Above)
+SMILES (Below)
+Hit Fraction Distribution (Proteins in CrossDock)
+Hit Fraction (%)
+DiffSBDD-C
+DiffSBDD-M
+DiffDec
+Delete
+02 0 4 0 6 0 8 0
+10.196
+0.593
+8.781
+0.526
+0.368
+0.303
+0.216
+0.062
+0.000
+7.987
+3.315
+3.126
+0.499
+Hit Fraction Distribution (Proteins in CrossDock)
+Hit Fraction (%)
+ShEPhERD
+PGMG
+ShapeMol
+7.905
+DiffSBDD-C
+DiffSBDD-M
+DiffDec
+Delete
+02 0 40 60 80
+10.339
+0.908 9.465
+1.161
+0.548
+0.643
+0.041
+0.068
+0.000
+8.499
+2.621
+2.448
+0.478
+Scaffold (Above)
+SMILES (Below)
+Hit Fraction Distribution (Proteins Not in CrossDock)
+Hit Fraction (%)
+ShEPhERD
+PGMG
+ShapeMol
+8.114
+100
+0.603
+0.572
+Scaffold (Above)
+SMILES (Below)
+a
+DiffSBDD-C
+DiffSBDD-M
+PocketFlow
+DecompDiff
+MolCraft
+TamGen
+Pocket2Mol
+TargetDiff
+FLAG
+SurfGen
+02 4 68
+0.783
+0.001 0.648
+0.000 0.632
+0.001
+0.002
+0.005
+0.000
+0.023
+0.000
+0.000
+0.002
+0.569
+0.556
+0.359
+0.230
+0.192
+Scaffold (Above)
+SMILES (Below)
+Hit Fraction Distribution (Proteins in CrossDock and Remove 
+SMILES and Scaffolds in CrossDock training set)
+Hit Fraction (%)
+DiffSBDD-C
+DiffSBDD-M
+PocketFlow
+DecompDiff
+MolCraft
+TamGen
+Pocket2Mol
+TargetDiff
+FLAG
+SurfGen
+0 5 10 15 20 25
+7.369
+0.004 2.569
+0.002 2.568
+0.011
+0.004
+0.006
+0.044
+0.001
+0.000
+0.001
+0.006
+1.880
+1.846
+1.590
+1.287
+1.031
+0.794
+0.478
+Scaffold (Above)
+SMILES (Below)
+Hit Rate Distribution (Proteins in CrossDock and Remove 
+SMILES and Scaffolds in CrossDock training set)
+Hit Rate (%)
+0.451
+0.431
+dc
+ef
+b
+SMILES (Below)
+Scaffold (Above)
+100
+Fig. 7 | Hit fraction evaluation of molecular generative models and the impact
+of training set overlap with target proteins. aHit fraction distribution of de novo
+generative models for proteins included in the CrossDock training set (n =8 5 ) .b Hit
+fraction distribution of de novo generative models for proteins not included in the
+CrossDock training set (n =3 5 ) .c Hit rate distribution of de novo generative models
+for proteins included in the CrossDock training set, after excluding de novo-
+generated molecules or scaffolds that overlap with the CrossDock training set
+(n =8 5 ) .d Hit fraction distribution of de novo generative models for proteins
+included in the CrossDock training set, after excluding de novo-generated mole-
+cules or scaffolds that overlap with the CrossDock training set (n = 85). e Hit
+fraction distribution of H2L optimization models for proteins included in the
+CrossDock training set (n = 425). f Hit fraction distribution of H2L optimization
+models for proteins not included in the CrossDock training set (n = 175). All data
+points represent the mean of three independent repeats. Notably, the H2L model
+DiffDec requires predeﬁned atomic anchors to identify modiﬁcation sites. These
+anchors are derived by aligning the common substructure of the compound series
+to reference actives; shared modiﬁcation sites across reference actives are weigh-
+ted by their occurrence frequency, and molecule generation is guided by these
+sites. Source data are provided as a Source Data ﬁle.
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 15\n\n===== PAGE 16 =====\ngenerative models showed an increase in the number of active mole-
+cules with larger sample sizes. A comparison between Fig.8a, b reveals
+orders-of-magnitude differences between the number of active scaf-
+folds and molecules identiﬁed at comparable sampling levels, under-
+scoring the substantially greater difﬁculty of molecule-level discovery.
+Similar trends were observed for H2L models (Fig. 8c, d):
+increased sampling improved the absolute number of active scaffolds
+and molecules recovered, but with diminishing ef ﬁciency. When
+comparing across tasks, MolCraft (BFN-based) maintained competitive
+performance in de novo evaluations, demonstrating the potential of
+BFN architectures for exploring bioactive space. DiffSBDD-C (inpaint-
+ing-based) performed consistently well in H2L tasks, highlighting the
+utility of inpainting strategies for constrained optimization. Critically,
+while increasing sampling volume elevated the absolute number of
+active entities recovered, it did not improve their enrichment rate,
+evidenced by the declining slopes of the curves in Fig.8.F u r t h e r m o r e ,
+current generative models and scoring functions remain limited in
+their ability to prioritize active molecules reliably. Thus, indis-
+criminately scaling up sampling volume offers little practical value for
+real-world drug discovery, as it fails to address the core limitation: the
+inability to distinguish active from inactive molecules efﬁciently. This
+ﬁnding underscores the urgency of developing more accurate protein-
+ligand interaction prediction tools to guide candidate prioritization.
+Evaluating H2L optimization models: introducing the mean
+normalized afﬁnity (MNA) score and assessing capability vs.
+generalizability
+A central contribution of this work is the establishment of a dedicated
+benchmark dataset for molecular optimization. While preceding ana-
+lyses in this study assessed the hit rate and hit fraction performance of
+b o t hd en o v og e n e r a t i v ea n dH 2 Lm o d e l s ,t h el a t t e ra r eo f t e ne x p l i c i t l y
+intended to identify molecules exhibiting better bioactivity. To assess
+this capability, we introduce the Mean Normalized Af ﬁnity (MNA)
+Score to quantify the ability of H2L models to discover compounds
+with superior potency (see details in Methods section).
+The MNA Score thus provides an aggregated measure of how well
+am o d e l’s generated actives perform relative to the full range of
+reference potency for each series, with higher values indicating a
+greater proportion of potent generated molecules. To assess H2L
+models’ optimization capability, we compared their performance
+across three independent repeats, excluding ShapeMol, which failed to
+generate any active molecules and thus could not be evaluated.
+A ss h o w ni nF i g .9a, DiffDec emerged as the top performer: it
+achieved the highest total number of active hits (124.0) and the highest
+MNA Score (0.520), demonstrating its ability to generate both a greater
+quantity of active molecules and compounds with superior bioactivity.
+Delete ranked second, with 104.7 active hits and an MNA Score of 0.482.
+Next were the diffusion-based inpa inting methods DiffSBDD-C (62.3
+hits, MNA Score = 0.401) and DiffSBDD-M (57.7 hits, MNA Score =
+0.415), followed by the ligand-based models ShEPhERD (26.0 hits, MNA
+Score = 0.465) and PGMG (11.0 hits, MNA Score = 0.453).
+Notably, ShEPhERD and PGMG exhibited higher MNA Scores than
+DiffSBDD-C/M despite fewer total hits. This suggests that while ligand-
+based models (which lack explicit protein pocket or fragment con-
+straints) have lower odds of identifying active compounds, their inte-
+gration of pharmacophore-based priors enables them to prioritize
+more potent molecules when actives are recovered.
+Subsequently, we conducted a more detailed analysis of the
+number of series with hits and the average number of hits per series
+across different methods. As shown in Fig.9b, Delete identiﬁed active
+c o m p o u n d si n5 7 . 7s e r i e sw i t ha na v e r a g eo f1 . 8 2h i t sp e rs e r i e s ,f o l -
+lowed by DiffDec, which detected actives in 53.0 series with an average
+of 2.34 hits. All other models performed lower across these metrics.
+Overall, models speciﬁcally tailored for fragment-based lead optimi-
+zation scenarios demonstrated clear advantages in these aspects.
+Diffusion-based inpainting approaches, DiffSBDD-M and DiffSBDD-C
+also delivered competitive results. Notably, these fragment-based
+methods identiﬁed active molecules across a greater number of series
+compared to ligand-based approaches, further underscoring the
+importance of incorporating pocket and fragment information.
+Moreover, a comparison between DiffSBDD-M and DiffSBDD-C
+revealed that the former, trained on crystal structures, generated
+molecules with slightly higher activity, whereas the latter, trained on
+simulated data, succeeded in identifying actives across more series.
+Among ligand-based methods, ShEPhERD, which leverages more
+comprehensive prior information, achieved the best performance by
+identifying active molecules in more series and with higher potency,
+followed by PGMG, which incorporates pharmacophore constraints
+with training on the ChEMBL dataset. In contrast, ShapeMol, which
+relies solely on molecular shape, failed to yield any active molecules.
+These ﬁndings suggest that different types of data and prior knowl-
+edge may enhance distinct capabilities of the models. Integrating
+simulated data, crystallographic data, and prior information holds
+promise for further improving model performance in lead optimiza-
+tion scenarios.
+Finally, we further examined the inﬂuence of protein presence in
+the training set on model performance, as detailed in Fig. 9c– f. As
+s h o w ni nF i g .9c– d, results on proteins in CrossDock were largely
+consistent with those across all proteins. On these targets, Delete
+slightly outperformed DiffDec in both mean normalized afﬁnity (MNA
+Score: 0.472 vs. 0.467) and total number of hits (77.0 vs. 76.7). Fur-
+thermore, Delete successfully identiﬁe da c t i v ec o m p o u n d si n4 4 . 3s e r -
+ies, substantially more than the 34.3 series covered by DiffDec. In
+contrast, DiffDec achieved a higher average number of hits per series
+(2.24 compared to 1.74 for Delete). As illustrated in Fig. 9e, DiffDec
+demonstrated markedly superior performance over all other methods
+in both the quantity and potency of active molecules generated for
+proteins not in CrossDock. This was further supported by the results in
+Fig. 9f, where DiffDec identiﬁed active compounds across 18.7 distinct
+series, exceeding the performance of Delete (13.3), DiffSBDD-C (16.7),
+and DiffSBDD-M (17.3). Together, these ﬁndings underscore the
+molecular optimization capability of DiffDec in challenging general-
+ization scenarios involving proteins, highlighting its robustness and
+practical utility in structure-based drug discovery. As detailed in Sup-
+plementary Fig. 15, our analysis of active molecules across Normalized
+Afﬁnity score thresholds reveal that DiffDec identiﬁes a greater num-
+ber of high-afﬁnity ligands for unseen proteins, whereas Delete excels
+on proteins present during training. This pronounced performance
+dichotomy underscores the critical necessity of evaluating models on
+protein targets to properly assess their generalizability. Further details
+are provided in the Supplementary Information.
+In summary, this comprehensive evaluation underscores the cri-
+tical role of model architecture, training data composition, and prior
+knowledge integration in H2L models. While fragment-based models,
+particularly Delete and DiffDec, demonstrate leading performance
+across multiple metrics, their strengths are complementary: Although
+DiffDec excels in discovering active compounds and generalizing to
+targets, its practical application is limited by the need to specify
+growth sites, an inductive bias that restricts its use when optimal sites
+are unknown. By contrast, Delete provides broader coverage across
+diverse molecular series. The superior performance of fragment-based
+methods over ligand-based approaches reafﬁrms the value of explicit
+pocket and fragment information. Our evaluation indicates that cur-
+rent models possess only modest H2L optimization capabilities. Their
+performance was limited, with the most successful model (Delete)
+achieving a success rate of just 9.6% (57/600 series). This result high-
+lights a critical limitation and indicates considerable scope for future
+development. Furthermore, the integration of multi-source data, such
+as crystallographic structures, simulated complexes, and pharmaco-
+phore priors, proves essential for enhancing model robustness and
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 16\n\n===== PAGE 17 =====\nThe relationship between the number of active scaffolds identified and the size of the sampled molecule set (De Novo)
+The relationship between the number of active molecules identified and the size of the sampled molecule set (De Novo)
+The relationship between the number of active scaffolds identified and the size of the sampled molecule set (Hit to Lead)
+The relationship between the number of active molecules identified and the size of the sampled molecule set (Hit to Lead)
+a
+c
+d
+40000 8000020000 60000 1000000
+2
+8
+1
+3
+0
+7
+6
+5
+4
+10
+20
+5
+15
+0
+1
+4
+0
+3
+2
+10
+5
+0
+20
+25
+15
+30
+2
+1
+3
+0
+6
+5
+4
+2
+8
+1
+3
+0
+7
+6
+5
+4
+2
+8
+1
+3
+0
+7
+6
+5
+4
+UniProt ID: O43570 UniProt ID: P00915 UniProt ID: Q92769
+UniProt ID: O43570 UniProt ID: P00915 UniProt ID: Q92769
+UniProt ID: P09874 (Series44306) UniProt ID: P43490 (Series44327) UniProt ID: P04629 (Series44458)
+UniProt ID: P09874 (Series44306) UniProt ID: P43490 (Series44327) UniProt ID: P04629 (Series44458)
+Number of Unique Active Molecules
+Sampling Number
+Number of Unique Active MoleculesNumber of Unique Active Scaffolds
+Sampling Number
+Sampling Number
+Sampling Number
+b
+40
+80
+20
+60
+0
+120
+100
+40
+80
+20
+60
+0
+120
+100
+Number of Unique Active Scaffolds
+140
+20
+40
+10
+30
+0
+60
+50
+40000 8000020000 60000 1000000 40000 8000020000 60000 1000000
+40000 8000020000 60000 1000000 40000 80000 20000 60000 1000000 40000 80000 20000 60000 1000000
+10
+5
+0
+20
+25
+15
+20
+10
+0
+40
+50
+30
+40000 8000020000 60000 1000000 40000 80000 20000 60000 1000000 40000 80000 20000 60000 1000000
+40000 8000020000 60000 1000000 40000 80000 20000 60000 1000000 40000 80000 20000 60000 1000000
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 17\n\n===== PAGE 18 =====\neffectiveness. These insights not only illuminate current model cap-
+abilities and limitations but also provide a clear pathway for future
+developments in generative models for drug discovery, emphasizing
+the need for task-aware design and generalized optimization
+strategies.
+Discussion
+Fit-for-purpose benchmarks are essential for directing molecular
+generative modeling toward real-world impact 54.I nt h i ss t u d y ,w e
+addressed several key limitations in existing evaluations of SBDD,
+including limited dataset scope, insufﬁcient assessment of hit-to-lead
+(H2L) optimization, inadequate evaluation of active-compound dis-
+covery efﬁciency and generalization, and overreliance on imperfect
+computational proxies. To address these gaps, we established Mol-
+GenBench, a large-scale SBDD benchmark covering diverse experi-
+mentally validated active molecules, protein targets, and chemical
+series, including the dedicated H2L benchmark in SBDD. Using this
+framework, we systematically evaluated 10 de novo design models and
+7 H2L optimization methods across diverse architectures, training
+datasets, and forms of prior knowledge, under a multi-dimensional
+evaluation scheme covering chemical validity, active recovery,
+screening ef ﬁciency, target-aware capability, physical plausibility,
+docking-workﬂow consistency, and interactionﬁdelity.
+Our results reveal several consistent limitations of current gen-
+erative models. Both de novo and H2L methods remain inef ﬁcient at
+generating fully active molecules, even though active scaffold discovery
+is more tractable. Most methods show limited coverage of target-
+speciﬁc bioactive space, weak target awareness, and frequent genera-
+tion of chemically “high-risk” motifs, all of which constrain practical
+applicability. Performance is also substantially inﬂated when targets are
+seen during training, underscoring the importance of rigorous evalua-
+tion on unseen proteins. At the same time, we observed encouraging
+progress in 3D generation: some methods showed favorable behavior
+relative to conventional docking-derived references in speci ﬁc
+workﬂow-level analyses, such as reducing steric clashes or better
+reproducing conserved protein-ligand interactions. However, our ana-
+lyses also show that single proxy metrics, such as redocking r.m.s.d.
+alone, are insufﬁcient to capture real model quality and should not be
+interpreted as experimental bioactive-pose accuracy.
+Beyond benchmarking, these systematic evaluations suggest
+several general design principles for future model development.
+Large-scale chemical pretraining appears bene ﬁcial for learning
+molecular grammar and bioactive substructure patterns and is asso-
+ciated with improved recovery of active scaffolds and molecules,
+although such gains should be interpreted cautiously because of
+possible memorization effects. Diffusion-based methods show clear
+advantages in sampling diversity and broader exploration of bioactive
+chemical space. The BFN architecture demonstrates notable strength
+in conformational generation, and our comparisons further suggest
+that training data quality, especially the use of crystal-derived com-
+plexes, has a substantial impact on conformational performance. In
+addition, richer prior knowledge, such as pharmacophore information,
+improves molecular design capability, particularly in optimization
+settings. More broadly, our results indicate that de novo design
+remains highly challenging for current methods, whereas H2L opti-
+mization appears to be a more promising and practically actionable
+direction, especially when explicit pocket information and fragment
+context are incorporated. Finally, our results also show that multi-
+dimensional evaluation is essential, because optimizing toward any
+single proxy metric can obscure important weaknesses in real-world
+applicability.
+Collectively, theseﬁndings demonstrate that signiﬁcant advances
+are still required before molecular generative models can effectively
+translate structural knowledge into actionable medicines. Our study
+provides a comprehensive reference that extends beyond mere
+methodological comparison to offer clear guidance for future devel-
+opment. We hope this work can help build a communicative bridge
+between AI and life sciences, serving as a foundational resource and
+practical roadmap to reﬁne generative architectures, improve training
+paradigms, and integrate more biologically relevant prior knowledge
+in biological generative AI. Ultimately, this effort aims to accelerate the
+development of generative models with enhanced clinical impact,
+speeding the discovery of safe, effective therapeutics for unmet
+medical needs and realizing the potential of AI to transform SBDD.
+Methods
+Maximum common substructures matching
+Maximum common substructures (MCS) were identi ﬁed for each
+chemical series using RDKit. To ensure both representativeness and
+coverage, we required the MCS size to account for more than one-third
+of the atoms in any molecule that contains it.
+Selection of initial structures and conformations for compound
+optimization
+After conﬁrming the ligands and the PDB structures to be used, we
+then used Glide55 to generate 3D conformations. Initially, the ligands
+were preprocessed using the Schrödinger LigPrep module with default
+parameters. On the protein side, the PDBﬁles were prepared using the
+Protein Preparation Wizard in the Schrödinger suite, following the
+standard protocol. Water molecules that formed more than three
+hydrogen bonds with ligand or receptor atoms were retained, and the
+receptor grids were generated with the centroid of the co-crystallized
+ligand as the center. After preprocessing, docking was performed
+using the Glide module in Schrödinger with default parameters. For
+each resulting ligand pose, the r.m.s.d. of the maximum common
+substructure relative to all other poses was calculated. The pose
+exhibiting the lowest mean r.m.s.d. value was selected as the reference
+conformation for subsequent optimization.
+Molecule generation
+In this study, we obtained the selected molecule generation models
+from their ofﬁcial GitHub repositories. All models were executed using
+their default conﬁg u r a t i o ns e t t i n g sa ss p e c iﬁed in the corresponding
+documentation. For the de novo molecule generation task, each model
+was required to generate 1000 molecules per UniProt ID. For the lead
+optimization task, each model was required to generate 200 molecules
+per series. To ensure reproducibility and account for stochasticity,
+each experiment was repeated three times with different random
+Fig. 8 | Relationship between inference-time sampling volume and recovery
+yield of active scaffolds/molecules in molecular generative models.
+a Relationship between sampling volume and the recovery yield of active scaffolds
+in de novo generative models. b Relationship between sampling volume and the
+recovery yield of active molecules in de novo generative models. c Relationship
+between sampling volume and the recovery yield of active scaffolds in H2L opti-
+mization models.d Relationship between sampling volume and the recovery yield
+of active molecules in H2L optimization models. Model performance was system-
+atically evaluated across a broad range of sampling volumes, spanningﬁve orders
+of magnitude (1– 100,000 molecules per target/series). Intermediate sampling was
+conducted at 1, 10, 100, and 1000 molecules, followed by 1000-molecule intervals
+up to 10,000 molecules, and 10,000-molecule intervals thereafter to the maximum
+volume of 100,000 molecules. Notably, the H2L model DiffDec requires predeﬁned
+atomic anchors to identify modiﬁcation sites. These anchors are derived by aligning
+the common substructure of the compound series to reference actives; shared
+modiﬁcation sites across reference actives are weighted by their occurrence fre-
+quency, and molecule generation is guided by these sites. Source data are provided
+as a Source Data ﬁle.
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 18\n\n===== PAGE 19 =====\nb
+cd
+ef
+a
+10 20 30 40 50 60
+1.20
+1.40
+1.60
+1.80
+2.00
+2.20
+All Proteins
+Number of Series
+Mean Number of Hits
+20 40 60 80 100 120
+0.420
+0.440
+0.460
+0.480
+0.500
+0.520MNA Score
+All Proteins
+Number of Hits
+0.400
+2468 16 18
+1.20
+1.40
+1.60
+1.80
+2.00
+2.20
+Number of Series
+Mean Number of Hits
+2.40
+2.60
+10 20 30 40
+0.550
+0.600MNA Score
+Proteins Not in CrossDock
+Number of Hits
+0.450
+0.400
+10 12 14
+20 40 60 70 80
+0.410
+0.420
+0.430
+0.440
+0.450
+0.460MNA Score
+Proteins in CrossDock
+Number of Hits
+10 30 50 51 0 1 5 2 0 40 45
+1.20
+1.40
+1.60
+1.80
+2.00
+2.20Mean Number of Hits
+Number of Series
+3025 35
+Proteins in CrossDock
+Proteins Not in CrossDock
+Delete DiffDec PGMG DiffSBDD-C DiffSBDD-M ShEPhERD
+0.470
+0.500
+2.40
+1.00
+Fig. 9 | Evaluation of Hit-to-Lead (H2L) optimization models: active molecule
+generation potency and the impact of training set overlap with target pro-
+teins. a, c, e Number of active compound hits recovered by H2L optimization
+methods, paired with their corresponding Mean Normalized Afﬁnity (MNA) Scores.
+Evaluated across all protein targets (a), those included in the CrossDock training set
+(c), and those not included in the CrossDock training set (e). b, d, f Number of
+compound series with at least one active hit recovered by H2L optimization
+methods, alongside the average number of active hits identiﬁed per series.
+Evaluated across all protein targets (b), those included in the CrossDock training
+set (d), and those not included in the CrossDock training set (f). For (a– f), data are
+presented as mean across three independent repeats (n =3 ) .N o t a b l y ,t h eH 2 L
+model DiffDec requires predeﬁned atomic anchors to identify modiﬁcation sites.
+These anchors are derived by aligning the common substructure of the compound
+series to reference actives; shared modiﬁcation sites across reference actives are
+weighted by their occurrence frequency, and molecule generation is guided by
+these sites. Source data are provided as a Source Data ﬁle.
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 19\n\n===== PAGE 20 =====\nseeds. We provide comprehensive descriptions of the codebases,
+weight ﬁles, input formats, and key parameters for all methods in the
+Supplementary Informationﬁle.
+To investigate the impact of increased sampling on the efﬁciency
+of discovering active molecules for de novo design models, we selec-
+ted three representative targets based on a speci ﬁcc r i t e r i o n :t h e
+average number of models per target that successfully sampled posi-
+tive molecules across three independent repeats. According to this
+ranking, we chose the top two targets from the“proteins in CrossDock”
+s u b s e ta n dt h et o po n ef r o mt h e“proteins not in CrossDock” subset.
+For H2L models, we ﬁrst ﬁltered analog series by requiring r.m.s.d. of
+maximum common substructure less than 2 Å. These series were then
+ranked by the number of reference molecules they contained. Fol-
+lowing this order, we selected the top two series from the“proteins in
+CrossDock” s u b s e ta n dt h et o po n ef r o mt h e“proteins not in Cross-
+Dock” subset. For these selected proteins or series, we sampled up to
+100,000 molecules per protein or series to assess whether increased
+sampling could enhance the discovery of active scaffolds/molecules
+and improve the corresponding hit rates.
+Molecule docking
+For the Vina docking workﬂow, ligands wereﬁrst processed with RDKit
+to generate initial 3D conformations using the MMFF94 forceﬁeld and
+subsequently converted to the PDBQT format using AutoDockTools.
+The protein structures prepared with the Schrödinger Protein Pre-
+paration Wizard were directly converted to the PDBQT format for
+docking in Vina. As commonly practiced in SBDD, the docking grid box
+was centered on the centroid of the binding ligand. The box
+dimensions were determined from the spatial extent of the ligand
+coordinates, with an additional buffer of 5 Å in each dimension
+to ensure complete coverage of the binding pocket. Docking
+simulations were carried out using Vina with default parameters, and
+the top-ranked binding poses were retained for subsequent analysis.
+The assessment of docking-pose-dependent metrics was limited to
+molecules possessing fewer than 15 rotatable bonds to ensure data
+quality.
+Evaluation metrics
+Basic properties. All metrics in this category are normalized to the
+range [0,1], where higher values indicate better properties. Speciﬁcally:
+1. Validity evaluates whether a generated molecule corresponds to a
+chemically valid structure. A molecule is considered valid if it can
+be successfully parsed and recognized as a complete molecule
+by RDKit.
+2. QED (Quantitative Estimation of Drug-likeness) measures the
+drug-like properties of molecules using RDKit.
+3. Synthetic Accessibility (SA) score estimates the synthetic feasibility
+of molecules, computed from fragment contributions using RDKit.
+4. Uniqueness measures the proportion of unique molecules gen-
+erated by each model for a given condition.
+5. Diversity quanti ﬁes chemical diversity among the valid molecules
+for each target protein:
+Diversity = 1/C0 1
+NðN /C0 1Þ
+P
+m1 , m2 2M
+m1 ≠m2
+Tðm1, m2Þð 1Þ
+where ðMÞ denotes the set of valid generated molecules.
+Tm 1, m2
+/C0/C1
+denotes the Tanimoto similarity between molecules
+m1 and m2,a n dN is the number of valid generated molecules.
+6. Chemical similarity to reference actives was evaluated by com-
+paring the distributions of three structural features including
+Atom types, Ring types, and Functional Group types identiﬁed by
+EFG56, between generated molecules and reference molecules. For
+each feature, empirical distributions were computed and com-
+pared using Jensen– Shannon Distance (JSD). The ﬁnal score was
+deﬁned as:
+Scorelabel =1 /C0 JSD PjjQðÞ ,l a b e l2 AtomType, RingType, Functional Group
+/C8/C9
+ð2Þ
+such that higher values indicate closer agreement between generated
+and reference distributions.
+All evaluation metrics except for Validity are computed on
+molecules that pass our deﬁnition of Validity.
+Chemical ﬁlters
+To ﬁlter out generated molecules with unstable, reactive, or other
+high-risk properties, we employed the open-source library medchem
+(https://github.com/datamol-io/medchem).T h i st o o lp r o v i d e sac o n -
+solidated implementation of authoritative chemicalﬁltering rulesets,
+integrating proprietary knowledge from industry leaders (such as Eli
+Lilly’s reactivity rules and Novartis Institute for BioMedical Research’s
+criteria) with community-driven alerts from public sources like
+ChEMBL and RDKit catalogs. This offers a robust framework for
+applying structural ﬁlters to prioritize compounds and mitigate risks
+associated with promiscuity and reactivity, thereby enhancing the
+efﬁciency of virtual screening. Details for each chemicalﬁlter item are
+provided in Supplementary Table 4.
+Structural plausibility test
+Structural plausibility of the generated protein– ligand binding poses
+was evaluated using PoseCheck35 and PoseBusters57. Using PoseCheck,
+we computed (i) strain energy to assess the physical plausibility of
+ligand conformations and (ii) clash score to quantify steric overlaps
+between protein and ligand atoms. In parallel, PoseBusters pass rates
+provide a comprehensive evaluation of the physical plausibility of the
+generated molecular structures, encompassing both intramolecular
+validity (e.g., internal strain, bond lengths) and intermolecular validity
+(e.g., steric clashes with the protein). Details for each PoseBuster test
+item are provided in Supplementary Table 5.
+Docking-workﬂow and interaction consistency
+Docking-workﬂow consistency and interaction similarity of the gen-
+erated poses were evaluated using two complementary metrics.
+Redocking r.m.s.d
+To assess docking-work ﬂow consistency, each generated molecule
+was re-docked into the corresponding protein pocket using Vina. The
+r.m.s.d. between the generated pose and the re-docked pose was
+computed with the spyrmsd58 package. Lower r.m.s.d. values indicate
+higher consistency between the generated and docking-
+predicted poses.
+Interaction score
+Previous methods such as PoseCheck commonly evaluate interaction
+similarity by computing the interaction ﬁngerprint (IFP) similarity
+between generated poses and a single reference active ’s docked
+structure. A modest improvement involves using multiple reference
+molecules and retaining the maximum IFP similarity between each
+generated molecule and any reference. However, these approaches
+suffer from two critical limitations: (1) docked poses inherently
+introduce inaccuracies due to intrinsic limitations of docking algo-
+rithms; and (2) reliance on a small number of references ampli ﬁes
+bias, as individual actives may not represent the full spectrum of
+functional interaction modes. To mitigate these issues, we designed a
+weighted, aggregate interaction scoring framework to reduce con-
+formational uncertainty and enable more robust assessment of
+interaction ﬁdelity.
+For each target, all reference active molecules were docked to the
+protein binding site, and interactionﬁngerprints were computed using
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 20\n\n===== PAGE 21 =====\nProLIF59. Each residue-interaction feature was de ﬁned as k = r, tðÞ ,
+where r denotes a protein residue andt denotes the type of interaction
+(e.g., hydrogen bond, π– stacking, salt bridge). Residue-interaction
+features were extracted from all docked reference actives, and the
+occurrence countck of each feature was recorded. We then computed
+the occurrence rate of each feature and removed those with frequency
+below a predeﬁned threshold (0.1 in this study). LetK denote the set
+of retained features. The normalized importance weight of each fea-
+ture was then deﬁned as:
+wk = ckP
+j2Kcj
+,
+X
+k2K
+wk =1 ð3Þ
+For a generated moleculeg,t h es e to ff e a t u r e si tf o r m si sd e n o t e d
+IgðÞ /C18 K. Its interaction score is deﬁned as:
+S gðÞ =
+X
+k2IgðÞ
+wk ð4Þ
+This design offers two main advantages: (1) aggregating patterns
+across all reference docked poses and excluding low-frequency inter-
+actions mitigates errors from individual docking inaccuracies; and (2)
+weighting interactions by conservation avoids equating trivial and
+functionally critical interactions.
+Hit rate
+The hit rate is deﬁned as the ratio of unique active entities (molecules
+or scaffolds) recovered to the total number of molecules sampled, as
+formalized in Eq. (5):
+Hit Ratelabel = Mactive
+Msampled
+; label 2f SMILES, Scaffoldg ð5Þ
+Here, Mactive denotes the number of unique active molecules or
+molecules bearing active Bemis-Murcko scaffolds identi ﬁed in the
+sampled set, while Msampled represents the total number of generated
+molecules sampled for evaluation.
+Hit fraction
+The hit fraction is de ﬁned as the ratio of unique active molecules or
+scaffolds recovered by a model to the total number of reference active
+molecules or scaffolds for that target, as formalized in Eq. (6):
+Hit Fractionlabel = Factive
+Fref
+;label 2f SMILES, Scaffoldg ð6Þ
+Here, Factive denotes the number of unique active molecules or
+Bemis-Murcko scaffolds identiﬁed in the model ’s sampled outputs,
+while Fref represents the total number of unique reference active
+molecules or scaffolds for the speci ﬁc target protein. This metric
+directly reﬂects a model’s ability to cover the known bioactive space,
+complementing the hit rate’s focus on efﬁciency.
+TAScore
+The TAScore measures the model’s ability to perceive target-speciﬁc
+information by comparing the ratio of molecule/scaffold recovery on a
+speciﬁc target to the background recovery ratio across all targets. The
+formal deﬁnition is given in Eq. (7):
+TAScorelabel,i = Si=Sall
+Ri=Rall
+; label 2f SMILES, Scaffoldg ð7Þ
+For the i-th target: Rall is the total number of distinct molecules
+generated by the model across all 120 targets.Ri represents the subset
+of Rall that matches known active molecules or active scaffolds for
+target i.Al a r g eRi indicates that the model tends to generate active
+molecules or scaffolds for target i even when not conditioned on i,
+signaling poor target speci ﬁcity. Sall is the total number of distinct
+molecules generated by the model when explicitly conditioned
+on target i. Si is the subset of Sall that matches known active
+molecules or active scaffolds for target i. Higher TAScore values
+indicate stronger target awareness. In practice, to ensure numerical
+stability, we added a very small value to the denominator during the
+calculation.
+MNA score
+The MNA Score calculation proceeds in two steps, ﬁrst normalizing
+experimentally validated binding af ﬁnities within each compound
+series and then computing a mean normalized value across all gener-
+ated active molecules. Formally:
+NAg =
+Affinityseries
+g /C0 Affinityseries
+min
+Affinityseries
+max /C0 Affinityseries
+min
+ð8Þ
+MNA Score = 1
+G
+XG
+g
+NAg ð9Þ
+In Eq. ( 8), g denotes a generated active molecule for a speci ﬁc
+compound series. Affinity series
+g represents the binding af ﬁnity of
+molecule g for its target (All afﬁnity values were ﬁrst converted to nM
+and then transformed to the corresponding negative logarithmic
+scale). Affinityseries
+max and Affinityseries
+min are the maximum and minimum
+binding af ﬁnities of reference active compounds within the same
+series, respectively. This normalization scales afﬁnity values to a uni-
+ﬁed range [0, 1] across all series, enabling direct cross-series compar-
+ison. In Eq. ( 9): G is the total number of unique active molecules
+identiﬁed by a model across all compound series. NA g is the normal-
+ized afﬁnity of molecule g.
+Reporting summary
+Further information on research design is available in the Nature
+Portfolio Reporting Summary linked to this article.
+Data availability
+The data presented in this study are derived exclusively from publicly
+available datasets39. Processed data and all underlying source data for
+the reported results are available in Zenodo with the identiﬁer https://
+zenodo.org/records/2023350560. Source data are provided with
+this paper.
+Code availability
+The code that supports theﬁndings of this study is available at GitHub
+repository: https://github.com/CAODH/MolGenBenchand the code
+is also available at Zenodo repository:https://doi.org/10.5281/zenodo.
+2175778761 under an MIT License.
+References
+1 . S k i n n i d e r ,M .A . ,S t a c e y ,R .G . ,W i s h a r t ,D .S .&F o s t e r ,L .J .C h e m i c a l
+language models enable navigation in sparsely populated chemical
+space. Nat. Mach. Intell. 3,7 5 9–770 https://doi.org/10.1038/
+s42256-021-00368-1(2021).
+2. Walters, W. P. & Murcko, M. Asse ssing the impact of generative AI
+on medicinal chemistry.Nat. Biotechnol.38,1 4 3–145 (2020).
+3. Krishnan, A. et al. A generative deep learning approach to de novo
+antibiotic design.Cell 188,5 9 6 2–5979.e22https://doi.org/10.1016/
+j.cell.2025.07.033(2025).
+4. Wu, K. et al. TamGen: drug design with target-aware molecule
+generation through a chemical language model.Nat. Commun.15,
+9360 https://doi.org/10.1038/s41467-024-53632-4(2024).
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 21\n\n===== PAGE 22 =====\n5. Jiang, Y. et al. Pocket ﬂow is a data-and-knowledge-driven structure-
+based molecular generative model.Nat. Mach. Intell. 6,
+326–337 (2024).
+6. Zhang, K. et al. Arti ﬁcial intelligence in drug development.Nat.
+Med. 31,4 5–59 https://doi.org/10.1038/s41591-024-03434-
+4 (2025).
+7. Chen, Y. et al. Deep generative model for drug design from protein
+target sequence.J. Cheminform. 15,3 8 https://doi.org/10.1186/
+s13321-023-00702-2(2023).
+8 . R a g o z a ,M . ,M a s u d a ,T .&K o e s ,D .R .G e n e r a t i n g3 Dm o l e c u l e s
+conditional on receptor binding sites with deep generative models.
+Chem. Sci. 13,2 7 0 1–2713 https://doi.org/10.1039/
+d1sc05976a(2022).
+9. Luo, S., Guan, J., Ma, J. & Peng, J. A 3D generative model for
+structure-based drug design.Adv. Neural Inf. Process. Syst. 34,
+6229–6239 (2021).
+10. Liu, M., Luo, Y., Uchino, K., Maruhashi, K. & Ji, S. Generating 3D
+molecules for target protein binding. InProceedings of the 39th
+International Conference on Machine Learning162,1 3 9 1 2–13924
+(PMLR, 2022).
+11. Zhung, W., Kim, H. & Kim, W. Y. 3D molecular generative framework
+for interaction-guided drug design.Nat. Commun.15,2 6 8 8https://
+doi.org/10.1038/s41467-024-47011-2(2024).
+12. Zhang, O. et al. Learning on topological surface and geometric
+structure for 3D molecular generation.Nat. Comput. Sci. 3,
+849–859 https://doi.org/10.1038/s43588-023-00530-2(2023).
+13. Chen, S. et al. Deep lead optimization enveloped in protein pocket
+and its application in designing potent and selective ligands tar-
+geting LTK protein.Nat. Mach. Intell. 7,4 4 8–458 https://doi.org/10.
+1038/s42256-025-00997-w(2025).
+1 4 . L a n d r u m ,G .e ta l .r d k i t / r d k i t :2 025_09_1 (Q3 2025) Release. Zenodo
+https://doi.org/10.5281/zenodo.17232453(2025).
+15. Guan, J. et al. 3D Equivariant Diffusion for Target-Aware Molecule
+Generation and Afﬁnity Prediction. In The Eleventh International
+Conference on Learning Representations(2023).
+16. Huang, L. et al. A dual diffusion model enables 3D molecule gen-
+eration and lead optimization based on target pockets.Nat. Com-
+mun. 15,2 6 5 7https://doi.org/10.1038/s41467-024-46569-1(2024).
+17. Guan, J. et al. DecompDiff: diffusion models with decomposed
+priors for structure-based drug design. InProceedings of the 40th
+International Conference on Machine Learning202, 11827–11846
+(PMLR, 2023).
+18. Schneuing, A. et al. Structure- based drug design with equivariant
+diffusion models.Nat. Comput. Sci.4,8 9 9–909 https://doi.org/10.
+1038/s43588-024-00737-x(2024).
+19. Qu, Y. et al. MolCRAFT: structure-based drug design in continuous
+parameter space. In Proceedings of the 41st International Con-
+ference on Machine Learning235,4 1 7 4 9–41768 (PMLR, 2024).
+20. Feng, W. et al. Generation of 3D molecules in pockets via a lan-
+guage model. Nat. Mach. Intell. 6,6 2–73 https://doi.org/10.1038/
+s42256-023-00775-6(2024).
+21. Hu, X. et al. 3DMolFormer: a dual-channel framework for structure-
+b a s e dd r u gd i s c o v e r y .I nThe Thirteenth International Conference on
+Learning Representations(2025).
+22. Xie, J., Chen, S., Lei, J. & Yang, Y. DiffDec: structure-aware scaffold
+decoration with an end-to-end diffusion model.J .C h e m .I n f .M o d e l .
+64,2 5 5 4–2564 https://doi.org/10.1021/acs.jcim.3c01466(2024).
+23. Weng, G. et al. RediscMol: Benchmarking Molecular Generation
+Models in Biological Properties.J. Med. Chem. 67,1 5 3 3–1543
+https://doi.org/10.1021/acs.jmedchem.3c02051(2024).
+2 4 . B r o w n ,N . ,F i s c a t o ,M . ,S e g l e r ,M .H .S .&V a u c h e r ,A .C .G u a c a M o l :
+Benchmarking Models for de Novo Molecular Design.J. Chem. Inf.
+Model. 59,1 0 9 6–1108 https://doi.org/10.1021/acs.jcim.
+8b00839 (2019).
+25. Francoeur, P. G. et al. Three-dimensional convolutional neural
+networks and a cross-docked data set for structure-based drug
+design.J. Chem. Inf. Model.60,4 2 0 0–4215 https://doi.org/10.1021/
+acs.jcim.0c00411(2020).
+26. Liu, Z. et al. PDB-wide collection of binding data: current status of
+the PDBbind database.Bioinformatics31,4 0 5–412 https://doi.org/
+10.1093/bioinformatics/btu626(2015).
+27. Nie, D. et al. Durian: A Comprehe nsive Benchmark for Structure-
+Based 3D Molecular Generation.J. Chem. Inf. Model. 65,1 7 3–186
+https://doi.org/10.1021/acs.jcim.4c02232(2025).
+28. Renz, P., Van Rompaey, D., Wegner, J. K., Hochreiter, S. & Klam-
+bauer, G. On failure modes in molecule generation and optimiza-
+tion. Drug Discov. Today Technol. 32,5 5–63 https://doi.org/10.
+1016/j.ddtec.2020.09.003(2019).
+2 9 . I r w i n ,J .J .&S h o i c h e t ,B .K .Z I N C–af r e ed a t a b a s eo fc o m m e r c i a l l y
+available compounds for virtual screening.J. Chem. Inf. Model.45,
+177–182 https://doi.org/10.1021/ci049714+(2005).
+30. Ren, M., Gao, B., Qiang, B. & Lan, Y. Delta Score: improving the
+binding assessment of structure-based drug design methods. In
+NeurIPS 2023 Generative AI and Biology (GenBio) Workshop(2023).
+31. Ertl, P. & Schuffenhauer, A. Estimation of synthetic accessibility
+score of drug-like molecules based on molecular complexity and
+fragment contributions.J. Cheminform.1,8 https://doi.org/10.1186/
+1758-2946-1-8(2009).
+32. Coley, C. W., Rogers, L., Green, W. H. & Jensen, K. F. SCScore:
+Synthetic Complexity Learned from a Reaction Corpus.J. Chem. Inf.
+Model. 58,2 5 2–261 https://doi.org/10.1021/acs.jcim.
+7b00622 (2018).
+33. Lawson, A. J., Swienty-Busch, J., Géoui, T. & Evans, D. in The Future
+of the History of Chemical Information,V o l .1 1 6 4ACS Symposium
+Series Ch. 8, 127–148 (American Chemical Society, 2014).
+34. Gao, W. & Coley, C. W. The Synthesizability of Molecules Proposed
+by Generative Models.J. Chem. Inf. Model. 60,5 7 1 4–5723 https://
+doi.org/10.1021/acs.jcim.0c00174(2020).
+35. Harris, C. et al. PoseCheck: generative models for 3D structure-
+based drug design produce unrealistic poses. InNeurIPS 2023
+Generative AI and Biology (GenBio) Workshop(2023).
+36. Liu, H. et al. How Good are Current Pocket-Based 3D Generative
+Models?: The Benchmark Set and Evaluation of Protein Pocket-
+Based 3D Molecular Generative Models.J. Chem. Inf. Model. 64,
+9260–9275 https://doi.org/10.1021/acs.jcim.4c01598(2024).
+37. Mysinger, M. M., Carchia, M., Irwin, J. J. & Shoichet, B. K. Directory of
+useful decoys, enhanced (DUD-E): better ligands and decoys for
+better benchmarking.J. Med. Chem. 55,6 5 8 2–6594 https://doi.
+org/10.1021/jm300687e(2012).
+3 8 . B a u e r ,M .R . ,I b r a h i m ,T .M . ,V o g e l ,S .M .&B o e c k l e r ,F .M .E v a l u a t i o n
+and optimization of virtual screening workﬂows with DEKOIS 2.0— a
+public library of challenging docking benchmark sets.J. Chem. Inf.
+Model. 53, 1447–1462 (2013).
+39. Gaulton, A. et al. ChEMBL: a larg e-scale bioactivity database for
+drug discovery. Nucleic Acids Res. 40, D1100–D1107 https://doi.
+org/10.1093/nar/gkr777(2012).
+40. UniProt, C. UniProt: the Universal Protein Knowledgebase in 2023.
+Nucleic Acids Res. 51,D 5 2 3–D531 https://doi.org/10.1093/nar/
+gkac1052 (2023).
+41. Burley, S. K. Protein data bank: From two epidemics to the global
+pandemic to mRNA vaccines and Paxlovid.Curr. Opin. Struct. Biol.
+90,1 0 2 9 5 4https://doi.org/10.1016/j.sbi.2024.102954(2025).
+42. Lin, H. et al. CBGBench: Fill in the Blank of Protein –Molecule
+Complex Binding Graph. InThe Thirteenth International Conference
+on Learning Representations(2025).
+43. Schuffenhauer, A. et al. Evolution of Novartis ’Small Molecule
+Screening Deck Design.J. Med. Chem.63,1 4 4 2 5–14447 https://doi.
+org/10.1021/acs.jmedchem.0c01332(2020).
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 22\n\n===== PAGE 23 =====\n44. Bruns, R. F. & Watson, I. A. Rules for identifying potentially reactive
+or promiscuous compounds.J. Med. Chem. 55,9 7 6 3–9772 https://
+doi.org/10.1021/jm301008n(2012).
+45. Watson, J. L. et al. De novo design of protein structure and function
+with RFdiffusion.Nature 620,1 0 8 9–1100 https://doi.org/10.1038/
+s41586-023-06415-8(2023).
+46. Jumper, J. et al. Highly accurate protein structure prediction with
+AlphaFold.Nature 596,5 8 3–589 https://doi.org/10.1038/s41586-
+021-03819-2(2021).
+47. Adeshina, Y. O., Deeds, E. J. & Karanicolas, J. Machine learning
+classiﬁcation can reduce false positives in structure-based virtual
+screening.P r o c .N a t l .A c a d .S c i .U S A117,1 8 4 7 7–18488 https://doi.
+org/10.1073/pnas.2000585117(2020).
+48. Bender, B. J. et al. A practical guide to large-scale docking. Nat.
+Protoc. 16,4 7 9 9–4832 https://doi.org/10.1038/s41596-021-00597-
+z (2021).
+49. Liu, F. et al. The impact of library size and scale of testing on virtual
+screening.Nat. Chem. Biol. 21,1 0 3 9–1045 https://doi.org/10.1038/
+s41589-024-01797-w(2025).
+50. Schneider, G. Automating drug discovery.Nat. Rev. Drug Discov.17,
+97–113 https://doi.org/10.1038/nrd.2017.232(2018).
+51. Schneider, P. & Schneider, G. De novo design at the edge of chaos:
+Miniperspective.J. Med. Chem. 59,4 0 7 7–4086 https://doi.org/10.
+1021/acs.jmedchem.5b01849(2016).
+52. Zhao, H. The Science and Art of Structure-Based Virtual Screening.
+ACS Med. Chem. Lett. 15,4 3 6–440 https://doi.org/10.1021/
+acsmedchemlett.4c00093(2024).
+53. Wu, Y., Sun, Z., Li, S., Welleck, S. & Yang, Y. Inference scaling laws:
+An empirical analysis of compute-optimal inference for LLM
+problem-solving. InThe Thirteenth International Conference on
+Learning Representations(2025).
+54. Wognum, C. et al. A call for an industry-led initiative to critically
+assess machine learning for real-world drug discovery.Nat. Mach.
+Intell. 6, 1120–1121 https://doi.org/10.1038/s42256-024-00911-
+w (2024).
+55. Friesner, R. A. et al. Glide: a new approach for rapid, accurate
+docking and scoring. 1. Method and assessment of docking accu-
+racy. J. Med. Chem. 47,1 7 3 9–1749 (2004).
+56. Salmina, E. S., Haider, N. & Tetko, I. V. Extended Functional Groups
+(EFG): An Efﬁcient Set for Chemical Characterization and Structure-
+Activity Relationship Studies of Chemical Compounds.Molecules
+21,1 https://doi.org/10.3390/molecules21010001(2015).
+57. Buttenschoen, M., Morris, G. M. & Deane, C. M. PoseBusters: AI-
+based docking methods fail to generate physically valid poses or
+generalise to novel sequences.Chem. Sci. 15,3 1 3 0–3139 https://
+doi.org/10.1039/D3SC04185A(2024).
+58. Meli, R. & Biggin, P. C. spyrmsd: symmetry-corrected RMSD cal-
+culations in Python. J. Cheminform. 12,4 9 https://doi.org/10.1186/
+s13321-020-00455-2(2020).
+59. Bouysset, C. & Fiorucci, S. ProLIF: a library to encode molecular
+interactions as ﬁngerprints.J. Cheminform. 13,7 2 https://doi.org/
+10.1186/s13321-021-00548-6(2021).
+6 0 . F a n ,Z .&C a o ,D .R a wd a t af o r“Benchmarking Real-World Applic-
+ability of Molecular GenerativeModels from De novo Design to Lead
+Optimization with MolGenBench” https://doi.org/10.5281/zenodo.
+20233505 (2026).
+61. Cao, D. & Fan, Z. Intelligent-Dr ug-Discovery-Lab/MolGenBench:
+release_v1https://doi.org/10.5281/zenodo.21757787(2026).
+Acknowledgements
+The authors acknowledge the China Science and Technology Cloud
+(AIstar-YS-2-09) and Bioinformatics Supercomputing Center at the
+School of Life Sciences and Technology,Tongji University, for providing
+computational resources and support.
+Author contributions
+D.H.C., Z.H.F. and J.Y. contributed equally. M.Y.Z. and D.H.C conceived
+the research project. D.H.C. and Z.H.F. developed the primary method
+and code. J.Y. assisted in the analysis of the primary baselines and data.
+X.S., M.A.C., X.Y.J., X.Y.W., C.L.Z., X.M.L., D.T. contributed to the analysis
+of the results. D.H.C., Z.H.F., J.Y. and M.Y.Z. wrote the paper. All authors
+read and approved the manuscript.
+Funding
+We gratefully acknowledgeﬁnancial support from National Natural
+Science Foundation of China (T2225002 and 82273855), Fundamental
+Research Funds for the Central Universities (22120260486), National Key
+Research and Development Program of China (2022YFC3400504 and
+2023YFC2305904), the Lingang Laboratory (LGL-8888-02) and Strate-
+gic Priority Research Program of the Chinese Academy of Sciences
+(XDB0830200 and XDB1260301).
+Competing interests
+The authors declare no competing interests.
+Additional information
+Supplementary informationThe online version contains
+supplementary material available at
+https://doi.org/10.1038/s41467-026-78105-8.
+Correspondenceand requests for materials should be addressed to
+Duanhua Cao or Mingyue Zheng.
+Peer review informationNature Communicationsthanks Carlos Out-
+eiral, and the other, anonymous, reviewer(s) for their contribution to the
+peer review of this work. A peer review ﬁle is available.
+Reprints and permissions informationis available at
+http://www.nature.com/reprints
+Publisher’s note Springer Nature remains neutral with regard to jur-
+isdictional claims in published maps and institutional afﬁliations.
+Open Access This article is licensed under a Creative Commons
+Attribution-NonCommercial-NoDerivatives 4.0 International License,
+which permits any non-commercial use, sharing, distribution and
+reproduction in any medium or format, as long as you give appropriate
+credit to the original author(s) and the source, provide a link to the
+Creative Commons licence, and indicate if you modiﬁed the licensed
+material. You do not have permission under this licence to share adapted
+material derived from this article or parts of it. The images or other third
+party material in this article are included in the article’s Creative
+Commons licence, unless indicatedotherwise in a credit line to the
+material. If material is not included in the article’s Creative Commons
+licence and your intended use is not permitted by statutory regulation or
+exceeds the permitted use, you will need to obtain permission directly
+from the copyright holder. To view a copy of this licence, visit http://
+creativecommons.org/licenses/by-nc-nd/4.0/.
+© The Author(s) 2026
+Article https://doi.org/10.1038/s41467-026-78105-8
+Nature Communications|        (2026) 17:11281 23
