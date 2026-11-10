@@ -507,14 +507,6 @@ export const projectProgress = {
       pending: ['完成每个 target 700 条结构及 panel 审计', '在 preflight 通过且获得授权后再启动 Oracle', '先做 development-only nested validation，再报告 formal qualification'],
     },
     {
-      id: 'P5B',
-      name: 'RATM v8 CQR 独立验证',
-      status: '进行中 / HOLD',
-      detail: '用 CQR + development-only residual calibration 应对异方差区间问题，并在排除历史 donor 的新 panel 上独立验证；当前 JNK3 结构池仍未达到 390 条 quota。',
-      done: ['开发集平均区间宽度 0.8644 → 0.8160', '冻结参数后的 exploratory final read 最低下界 0.8720 → 0.9009，但未作为 formal qualification', '从官方 ChEMBL37 source 建立 2416 个新 fragment，排除 558 个 v5/v6/v7 donor', '定位 max_parent_brics_bonds=5 导致 source groups 仅 158 个，并预注册放宽到 8'],
-      pending: ['完成 JNK3 390/390 且保持 parent/scaffold/donor disjoint', '只在完整独立 panel 上运行 docking/ADMET 和 formal calibration', '不降低 quota、不复用历史 donor、不把 exploratory read 写成正式结论'],
-    },
-    {
       id: 'P6',
       name: 'MolMem 论文复现',
       status: '完成 practical / 待严格复现',
